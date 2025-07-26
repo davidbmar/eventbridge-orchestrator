@@ -286,10 +286,10 @@ echo -e "${CYAN}Enable Alerts:${NC} ${ENABLE_ALERTS}"
 # Next steps
 echo -e "\n${GREEN}🎉 Interactive setup completed!${NC}"
 echo -e "\n${YELLOW}📋 Next Steps:${NC}"
-echo -e "${BLUE}1. Run: ./step-001-setup-iam-permissions.sh${NC}"
-echo -e "${BLUE}2. Run: ./step-002-deploy-infrastructure.sh${NC}"
-echo -e "${BLUE}3. Run: ./step-003-deploy-lambdas.sh${NC}"
-echo -e "${BLUE}4. Run: ./step-004-test-events.sh${NC}"
+echo -e "${BLUE}1. Run: ./step-010-setup-iam-permissions.sh${NC}"
+echo -e "${BLUE}2. Run: ./step-020-deploy-infrastructure.sh${NC}"
+echo -e "${BLUE}3. Run: ./step-040-deploy-lambdas.sh${NC}"
+echo -e "${BLUE}4. Run: ./step-050-test-events.sh${NC}"
 
 echo -e "\n${YELLOW}💡 Pro Tips:${NC}"
 echo -e "${BLUE}• Your configuration is saved in .env${NC}"
@@ -299,9 +299,9 @@ echo -e "${BLUE}• Check README-SETUP.md for detailed documentation${NC}"
 
 # Offer to run next step
 echo -e "\n${CYAN}Would you like to run step 1 (IAM setup) now?${NC}"
-prompt_yes_no "Continue with step-001-setup-iam-permissions.sh?" "y" RUN_STEP_1
+prompt_yes_no "Continue with step-010-setup-iam-permissions.sh?" "y" RUN_STEP_1
 
 if [ "$RUN_STEP_1" = "true" ]; then
     echo -e "\n${YELLOW}🚀 Running step 1...${NC}"
-    ./step-001-setup-iam-permissions.sh
+    ./step-010-setup-iam-permissions.sh
 fi

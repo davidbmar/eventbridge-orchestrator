@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🧪 Step 4: Testing EventBridge Events"
+echo "🧪 Step 50: Testing EventBridge Events"
 
 # Colors for output
 RED='\033[0;31m'
@@ -171,7 +171,7 @@ if [ ! -z "$EVENT_LOGGER_ARN" ]; then
                 echo -e "${BLUE}   💡 Events may be published to default bus instead of custom bus${NC}"
             else
                 echo -e "${YELLOW}   ⚠️  Lambda not connected as EventBridge target${NC}"
-                echo -e "${BLUE}   💡 Run step-003 again to connect Lambda to EventBridge rules${NC}"
+                echo -e "${BLUE}   💡 Run step-040 again to connect Lambda to EventBridge rules${NC}"
             fi
         fi
     fi

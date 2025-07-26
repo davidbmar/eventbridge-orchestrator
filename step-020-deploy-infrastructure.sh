@@ -30,7 +30,7 @@ fi
 # Check if Step 1 was completed
 CURRENT_USER=${AWS_USER:-$(aws sts get-caller-identity --query 'Arn' --output text | cut -d'/' -f2)}
 if ! aws iam get-user-policy --user-name "${CURRENT_USER}" --policy-name EventBridgeFullAccess > /dev/null 2>&1; then
-    echo -e "${RED}❌ Step 1 (IAM setup) not completed. Please run step-001-setup-iam-permissions.sh first${NC}"
+    echo -e "${RED}❌ Step 1 (IAM setup) not completed. Please run step-010-setup-iam-permissions.sh first${NC}"
     exit 1
 fi
 
@@ -111,7 +111,7 @@ EOF
     fi
     
     echo -e "${GREEN}🎉 Step 2 completed successfully!${NC}"
-    echo -e "${BLUE}Next: Run step-003-deploy-lambdas.sh${NC}"
+    echo -e "${BLUE}Next: Run step-040-deploy-lambdas.sh${NC}"
 else
     echo -e "${RED}❌ Infrastructure deployment failed${NC}"
     echo -e "${YELLOW}💡 Some resources may have been created. Check AWS console.${NC}"

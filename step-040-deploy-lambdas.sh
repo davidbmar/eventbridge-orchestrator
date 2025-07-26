@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "⚡ Step 3: Deploying Lambda Functions"
+echo "⚡ Step 40: Deploying Lambda Functions"
 
 # Colors for output
 RED='\033[0;31m'
@@ -12,7 +12,7 @@ NC='\033[0m' # No Color
 
 # Load deployment config
 if [ ! -f deployment-config.env ]; then
-    echo -e "${RED}❌ deployment-config.env not found. Please run step-002 first.${NC}"
+    echo -e "${RED}❌ deployment-config.env not found. Please run step-020 first.${NC}"
     exit 1
 fi
 
@@ -192,4 +192,4 @@ EVENT_PROCESSOR_ROLE_ARN=${EVENT_PROCESSOR_ROLE_ARN}
 EOF
 
 echo -e "${GREEN}🎉 Step 3 completed successfully!${NC}"
-echo -e "${BLUE}Next: Run step-004-test-events.sh${NC}"
+echo -e "${BLUE}Next: Run step-050-test-events.sh${NC}"

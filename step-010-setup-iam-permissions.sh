@@ -91,4 +91,4 @@ fi
 rm eventbridge-full-policy.json
 
 echo -e "${GREEN}🎉 Step 1 completed successfully!${NC}"
-echo -e "${BLUE}Next: Run step-002-deploy-infrastructure.sh${NC}"
+echo -e "${BLUE}Next: Run step-020-deploy-infrastructure.sh${NC}"

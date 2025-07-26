@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🔄 Step 2b: Update IAM Permissions for Existing Lambda Functions"
+echo "🔄 Step 30: Update IAM Permissions for Existing Lambda Functions"
 
 # Colors for output
 RED='\033[0;31m'
@@ -85,4 +85,4 @@ update_lambda_permissions "EventProcessorBasicRole"
 
 echo -e "\n${GREEN}🎉 Permission update completed!${NC}"
 echo -e "${BLUE}Lambda functions now have CloudWatch permissions${NC}"
-echo -e "${YELLOW}💡 Re-run step-004 to test the updated system${NC}"
+echo -e "${YELLOW}💡 Re-run step-050 to test the updated system${NC}"
