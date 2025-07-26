@@ -59,7 +59,29 @@ safe_run() {
     fi
 }
 
-# 1. Destroy Terraform-managed resources
+# 1. Pre-cleanup: Remove EventBridge targets before Terraform destroy
+echo -e "\n${YELLOW}🎯 Removing EventBridge targets first...${NC}"
+
+if [ "${USE_CUSTOM_BUS}" = "true" ] && [ "${EVENT_BUS_NAME}" != "default" ]; then
+    # Get all rules on the custom bus
+    RULES=$(aws events list-rules --event-bus-name "${EVENT_BUS_NAME}" --region "${AWS_REGION}" --query 'Rules[].Name' --output text 2>/dev/null || echo "")
+    
+    if [ ! -z "$RULES" ]; then
+        for rule in $RULES; do
+            echo -e "${BLUE}Removing targets from rule: $rule${NC}"
+            # Get all target IDs for this rule
+            TARGET_IDS=$(aws events list-targets-by-rule --rule "$rule" --event-bus-name "${EVENT_BUS_NAME}" --region "${AWS_REGION}" --query 'Targets[].Id' --output text 2>/dev/null || echo "")
+            
+            if [ ! -z "$TARGET_IDS" ]; then
+                # Remove all targets
+                safe_run "Removing targets from rule $rule" \
+                    "aws events remove-targets --rule '$rule' --event-bus-name '${EVENT_BUS_NAME}' --ids $TARGET_IDS --region '${AWS_REGION}'"
+            fi
+        done
+    fi
+fi
+
+# 2. Destroy Terraform-managed resources
 if [ -d "terraform" ] && [ -f "terraform/.terraform.lock.hcl" ]; then
     echo -e "\n${YELLOW}🏗️  Destroying Terraform infrastructure...${NC}"
     cd terraform
@@ -76,7 +98,7 @@ else
     echo -e "${YELLOW}⚠️  No Terraform state found${NC}"
 fi
 
-# 2. Delete Lambda functions
+# 3. Delete Lambda functions
 echo -e "\n${YELLOW}⚡ Destroying Lambda functions...${NC}"
 
 LAMBDA_FUNCTIONS=(
@@ -91,19 +113,25 @@ for func in "${LAMBDA_FUNCTIONS[@]}"; do
         "aws lambda delete-function --function-name '$func' --region '${AWS_REGION}'"
 done
 
-# 3. Delete EventBridge resources that might not be in Terraform
-echo -e "\n${YELLOW}🔄 Destroying EventBridge resources...${NC}"
+# 4. Delete EventBridge resources that might not be in Terraform
+echo -e "\n${YELLOW}🔄 Destroying remaining EventBridge resources...${NC}"
 
 # Delete custom event bus if it exists
 if [ "${USE_CUSTOM_BUS}" = "true" ] && [ "${EVENT_BUS_NAME}" != "default" ]; then
-    # First delete all rules on the custom bus
-    safe_run "Listing rules on custom bus" \
-        "aws events list-rules --event-bus-name '${EVENT_BUS_NAME}' --region '${AWS_REGION}'"
-    
+    # Get remaining rules (if any) on the custom bus
     RULES=$(aws events list-rules --event-bus-name "${EVENT_BUS_NAME}" --region "${AWS_REGION}" --query 'Rules[].Name' --output text 2>/dev/null || echo "")
     
     if [ ! -z "$RULES" ]; then
         for rule in $RULES; do
+            # Remove any remaining targets first
+            TARGET_IDS=$(aws events list-targets-by-rule --rule "$rule" --event-bus-name "${EVENT_BUS_NAME}" --region "${AWS_REGION}" --query 'Targets[].Id' --output text 2>/dev/null || echo "")
+            
+            if [ ! -z "$TARGET_IDS" ]; then
+                safe_run "Removing remaining targets from rule $rule" \
+                    "aws events remove-targets --rule '$rule' --event-bus-name '${EVENT_BUS_NAME}' --ids $TARGET_IDS --region '${AWS_REGION}'"
+            fi
+            
+            # Now delete the rule
             safe_run "Deleting rule: $rule" \
                 "aws events delete-rule --name '$rule' --event-bus-name '${EVENT_BUS_NAME}' --region '${AWS_REGION}'"
         done
@@ -113,7 +141,7 @@ if [ "${USE_CUSTOM_BUS}" = "true" ] && [ "${EVENT_BUS_NAME}" != "default" ]; the
         "aws events delete-event-bus --name '${EVENT_BUS_NAME}' --region '${AWS_REGION}'"
 fi
 
-# 4. Delete Schema Registry and Schemas
+# 5. Delete Schema Registry and Schemas
 echo -e "\n${YELLOW}📋 Destroying Schema Registry...${NC}"
 
 REGISTRY_NAME="${ENVIRONMENT}-event-schemas"
@@ -129,7 +157,7 @@ fi
 safe_run "Deleting schema registry: ${REGISTRY_NAME}" \
     "aws schemas delete-registry --registry-name '${REGISTRY_NAME}' --region '${AWS_REGION}'"
 
-# 5. Delete SQS Queues
+# 6. Delete SQS Queues
 echo -e "\n${YELLOW}📨 Destroying SQS queues...${NC}"
 
 SQS_QUEUES=(
@@ -145,7 +173,7 @@ for queue in "${SQS_QUEUES[@]}"; do
     fi
 done
 
-# 6. Delete CloudWatch Log Groups
+# 7. Delete CloudWatch Log Groups
 echo -e "\n${YELLOW}📊 Destroying CloudWatch log groups...${NC}"
 
 LOG_GROUPS=(
@@ -168,7 +196,7 @@ for log_group in "${LOG_GROUPS[@]}"; do
     fi
 done
 
-# 7. Delete IAM Roles and Policies (be careful with this)
+# 8. Delete IAM Roles and Policies (be careful with this)
 echo -e "\n${YELLOW}🔐 Destroying IAM resources...${NC}"
 
 IAM_ROLES=(
@@ -205,7 +233,7 @@ for role in "${IAM_ROLES[@]}"; do
         "aws iam delete-role --role-name '$role'"
 done
 
-# 8. Remove user policies we added
+# 9. Remove user policies we added
 echo -e "\n${YELLOW}👤 Removing user policies...${NC}"
 
 CURRENT_USER=${AWS_USER:-$(aws sts get-caller-identity --query 'Arn' --output text | cut -d'/' -f2 2>/dev/null)}
@@ -217,7 +245,7 @@ if [ ! -z "$CURRENT_USER" ]; then
         "aws iam delete-user-policy --user-name '$CURRENT_USER' --policy-name 'EventBridgeTestPolicy'"
 fi
 
-# 9. Clean up local files
+# 10. Clean up local files
 echo -e "\n${YELLOW}🧹 Cleaning up local files...${NC}"
 
 safe_run "Removing Terraform state files" \
@@ -232,7 +260,7 @@ safe_run "Removing temporary files" \
 safe_run "Removing generated test files" \
     "rm -f examples/test-document-upload.json examples/test-batch-events.json"
 
-# 10. Option to remove .env file
+# 11. Option to remove .env file
 echo -e "\n${CYAN}Do you want to remove the .env configuration file?${NC}"
 read -p "Remove .env? (y/N): " remove_env
 
