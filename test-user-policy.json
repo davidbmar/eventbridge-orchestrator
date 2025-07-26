@@ -1,0 +1,22 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "events:PutEvents",
+                "events:CreateEventBus",
+                "events:CreateRule",
+                "events:TagResource",
+                "events:DescribeEventBus",
+                "events:DescribeRule",
+                "schemas:CreateRegistry",
+                "schemas:CreateSchema",
+                "schemas:TagResource",
+                "schemas:DescribeRegistry",
+                "schemas:DescribeSchema"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

@@ -133,14 +133,16 @@ resource "aws_iam_role_policy_attachment" "event_processor_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# EventBridge permissions to invoke Lambda targets
+# EventBridge permissions to invoke Lambda targets (only for existing functions)
 resource "aws_lambda_permission" "eventbridge_invoke" {
   for_each = {
-    event_logger           = var.event_logger_lambda_arn
-    dead_letter_processor  = var.dead_letter_processor_lambda_arn
-    transcription_handler  = var.transcription_handler_lambda_arn
-    search_indexer        = var.search_indexer_lambda_arn
-    notification_handler  = var.notification_handler_lambda_arn
+    for k, v in {
+      event_logger           = var.event_logger_lambda_arn
+      dead_letter_processor  = var.dead_letter_processor_lambda_arn
+      transcription_handler  = var.transcription_handler_lambda_arn
+      search_indexer        = var.search_indexer_lambda_arn
+      notification_handler  = var.notification_handler_lambda_arn
+    } : k => v if v != ""
   }
 
   statement_id  = "AllowExecutionFromEventBridge-${each.key}"

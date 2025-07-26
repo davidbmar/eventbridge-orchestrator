@@ -1,0 +1,7 @@
+[
+  {
+    "Source": "custom.transcription-service",
+    "DetailType": "Transcription Completed",
+    "Detail": "{\"userId\":\"test-user-456\",\"fileId\":\"550e8400-e29b-41d4-a716-446655440000\",\"jobId\":\"7ba8c920-8dae-22d2-91b5-11c15fd541c9\",\"status\":\"completed\",\"sourceAudio\":{\"bucket\":\"test-audio-bucket\",\"key\":\"test-user-456/test-file.mp3\"},\"transcriptLocation\":{\"bucket\":\"test-transcript-bucket\",\"textKey\":\"test-user-456/transcript.txt\",\"jsonKey\":\"test-user-456/transcript.json\"},\"completedAt\":\"2024-01-15T10:35:00Z\"}"
+  }
+]
