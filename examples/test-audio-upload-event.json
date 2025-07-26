@@ -1,0 +1,7 @@
+[
+  {
+    "Source": "custom.upload-service",
+    "DetailType": "Audio Uploaded", 
+    "Detail": "{\"userId\":\"test-user-123\",\"fileId\":\"550e8400-e29b-41d4-a716-446655440000\",\"s3Location\":{\"bucket\":\"test-audio-bucket\",\"key\":\"test-user-123/test-file.mp3\"},\"metadata\":{\"format\":\"mp3\",\"size\":1024000,\"contentType\":\"audio/mpeg\"}}"
+  }
+]
