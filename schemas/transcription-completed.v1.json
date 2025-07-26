@@ -1,0 +1,199 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TranscriptionCompleted",
+  "description": "Event emitted when audio transcription is completed by the GPU workers. This event can trigger indexing, notification, or downstream processing workflows.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": "1.0",
+      "description": "Schema version for this event type. Used for backward compatibility."
+    },
+    "source": {
+      "const": "custom.transcription-service",
+      "description": "Event source identifier for EventBridge routing rules"
+    },
+    "detail-type": {
+      "const": "Transcription Completed",
+      "description": "Event type for EventBridge content-based filtering"
+    },
+    "detail": {
+      "type": "object",
+      "description": "The main event payload containing transcription results",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Cognito user ID who owns the transcribed audio",
+          "pattern": "^[a-zA-Z0-9-]+$",
+          "examples": ["user-123-abc-def", "550e8400-e29b-41d4-a716-446655440000"]
+        },
+        "fileId": {
+          "type": "string",
+          "description": "Original file ID from the audio upload event",
+          "format": "uuid",
+          "examples": ["550e8400-e29b-41d4-a716-446655440000"]
+        },
+        "jobId": {
+          "type": "string",
+          "description": "Unique identifier for this transcription job",
+          "format": "uuid",
+          "examples": ["7ba8c920-8dae-22d2-91b5-11c15fd541c9"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Final status of the transcription job",
+          "enum": ["completed", "failed", "partial"],
+          "$comment": "partial means transcription succeeded but with warnings",
+          "examples": ["completed"]
+        },
+        "sourceAudio": {
+          "type": "object",
+          "description": "Reference to the original audio file",
+          "properties": {
+            "bucket": {
+              "type": "string",
+              "description": "S3 bucket containing the source audio",
+              "examples": ["audio-uploads-prod"]
+            },
+            "key": {
+              "type": "string",
+              "description": "S3 key of the source audio file",
+              "examples": ["user-123/550e8400-e29b-41d4-a716-446655440000/recording.mp3"]
+            }
+          },
+          "required": ["bucket", "key"]
+        },
+        "transcriptLocation": {
+          "type": "object",
+          "description": "S3 location where transcript files are stored",
+          "properties": {
+            "bucket": {
+              "type": "string",
+              "description": "S3 bucket containing the transcript outputs",
+              "examples": ["transcription-outputs-prod"]
+            },
+            "textKey": {
+              "type": "string",
+              "description": "S3 key for plain text transcript",
+              "examples": ["user-123/550e8400-e29b-41d4/transcript.txt"]
+            },
+            "jsonKey": {
+              "type": "string",
+              "description": "S3 key for structured JSON transcript with timestamps",
+              "examples": ["user-123/550e8400-e29b-41d4/transcript.json"]
+            },
+            "srtKey": {
+              "type": "string",
+              "description": "S3 key for SRT subtitle format (optional)",
+              "examples": ["user-123/550e8400-e29b-41d4/transcript.srt"]
+            }
+          },
+          "required": ["bucket", "textKey", "jsonKey"]
+        },
+        "transcriptMetadata": {
+          "type": "object",
+          "description": "Metadata about the transcription process and results",
+          "properties": {
+            "language": {
+              "type": "string",
+              "description": "Detected or specified language (ISO 639-1 code)",
+              "pattern": "^[a-z]{2}$",
+              "examples": ["en", "es", "fr"]
+            },
+            "duration": {
+              "type": "number",
+              "description": "Duration of the audio in seconds",
+              "examples": [180.5, 3600]
+            },
+            "wordCount": {
+              "type": "integer",
+              "description": "Total number of words in the transcript",
+              "minimum": 0,
+              "examples": [1543, 8921]
+            },
+            "confidence": {
+              "type": "number",
+              "description": "Overall confidence score of the transcription (0-1)",
+              "minimum": 0,
+              "maximum": 1,
+              "examples": [0.95, 0.87]
+            },
+            "model": {
+              "type": "string",
+              "description": "AI model used for transcription",
+              "examples": ["whisper-large-v3", "whisper-medium", "wav2vec2"]
+            },
+            "processingTime": {
+              "type": "number",
+              "description": "Time taken to process in seconds",
+              "examples": [45.3, 120.7]
+            },
+            "timestamps": {
+              "type": "boolean",
+              "description": "Whether word-level timestamps are included",
+              "examples": [true, false]
+            }
+          },
+          "required": ["language", "duration", "wordCount", "model"]
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when transcription completed",
+          "examples": ["2024-01-15T10:35:00Z"]
+        },
+        "error": {
+          "type": "object",
+          "description": "Error details if status is 'failed' or 'partial'",
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "Error code for programmatic handling",
+              "examples": ["AUDIO_TOO_SHORT", "UNSUPPORTED_FORMAT", "PROCESSING_TIMEOUT"]
+            },
+            "message": {
+              "type": "string",
+              "description": "Human-readable error message",
+              "examples": ["Audio file is less than 1 second", "Processing exceeded 30 minute timeout"]
+            }
+          },
+          "required": ["code", "message"]
+        }
+      },
+      "required": ["userId", "fileId", "jobId", "status", "sourceAudio", "completedAt"]
+    }
+  },
+  "required": ["version", "source", "detail-type", "detail"],
+  "examples": [
+    {
+      "version": "1.0",
+      "source": "custom.transcription-service",
+      "detail-type": "Transcription Completed",
+      "detail": {
+        "userId": "user-123-abc-def",
+        "fileId": "550e8400-e29b-41d4-a716-446655440000",
+        "jobId": "7ba8c920-8dae-22d2-91b5-11c15fd541c9",
+        "status": "completed",
+        "sourceAudio": {
+          "bucket": "audio-uploads-prod",
+          "key": "user-123/550e8400-e29b-41d4-a716-446655440000/recording.mp3"
+        },
+        "transcriptLocation": {
+          "bucket": "transcription-outputs-prod",
+          "textKey": "user-123/550e8400-e29b-41d4/transcript.txt",
+          "jsonKey": "user-123/550e8400-e29b-41d4/transcript.json",
+          "srtKey": "user-123/550e8400-e29b-41d4/transcript.srt"
+        },
+        "transcriptMetadata": {
+          "language": "en",
+          "duration": 1800,
+          "wordCount": 4523,
+          "confidence": 0.94,
+          "model": "whisper-large-v3",
+          "processingTime": 120.5,
+          "timestamps": true
+        },
+        "completedAt": "2024-01-15T10:35:00Z"
+      }
+    }
+  ]
+}

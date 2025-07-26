@@ -1,0 +1,147 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DocumentUploaded",
+  "description": "Event emitted when a user uploads a document file to S3. This event can trigger OCR, indexing, or document processing workflows.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": "1.0",
+      "description": "Schema version for this event type. Used for backward compatibility."
+    },
+    "source": {
+      "const": "custom.upload-service",
+      "description": "Event source identifier for EventBridge routing rules"
+    },
+    "detail-type": {
+      "const": "Document Uploaded",
+      "description": "Event type for EventBridge content-based filtering"
+    },
+    "detail": {
+      "type": "object",
+      "description": "The main event payload containing document upload details",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Cognito user ID of the person who uploaded the file",
+          "pattern": "^[a-zA-Z0-9-]+$",
+          "examples": ["user-123-abc-def", "550e8400-e29b-41d4-a716-446655440000"]
+        },
+        "fileId": {
+          "type": "string",
+          "description": "Unique identifier for this upload. Generated as UUID v4 by the frontend Lambda.",
+          "format": "uuid",
+          "examples": ["550e8400-e29b-41d4-a716-446655440000", "6ba7b810-9dad-11d1-80b4-00c04fd430c8"]
+        },
+        "s3Location": {
+          "type": "object",
+          "description": "S3 location where the document is stored",
+          "properties": {
+            "bucket": {
+              "type": "string",
+              "description": "S3 bucket name where documents are stored",
+              "pattern": "^[a-z0-9.-]+$",
+              "examples": ["document-uploads-prod", "document-uploads-dev"]
+            },
+            "key": {
+              "type": "string",
+              "description": "S3 object key (path) for the uploaded file. Format: userId/fileId/filename",
+              "examples": [
+                "user-123/550e8400-e29b-41d4-a716-446655440000/report.pdf",
+                "user-456/6ba7b810-9dad-11d1-80b4-00c04fd430c8/contract.docx"
+              ]
+            }
+          },
+          "required": ["bucket", "key"]
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Document-specific metadata",
+          "properties": {
+            "format": {
+              "type": "string",
+              "description": "Document format of the uploaded file",
+              "enum": ["pdf", "doc", "docx", "txt", "rtf", "odt", "xls", "xlsx", "ppt", "pptx"],
+              "examples": ["pdf", "docx"]
+            },
+            "pageCount": {
+              "type": "integer",
+              "description": "Number of pages in the document (if available)",
+              "minimum": 1,
+              "examples": [10, 250]
+            },
+            "isScanned": {
+              "type": "boolean",
+              "description": "Whether the document appears to be a scanned image (useful for OCR decisions)",
+              "examples": [true, false]
+            },
+            "isEncrypted": {
+              "type": "boolean",
+              "description": "Whether the document is password-protected or encrypted",
+              "examples": [false, true]
+            },
+            "language": {
+              "type": "string",
+              "description": "Detected or declared language of the document (ISO 639-1 code)",
+              "pattern": "^[a-z]{2}$",
+              "examples": ["en", "es", "fr"]
+            },
+            "size": {
+              "type": "number",
+              "description": "File size in bytes",
+              "minimum": 0,
+              "maximum": 1073741824,
+              "$comment": "Max 1GB file size limit for documents",
+              "examples": [1048576, 52428800]
+            },
+            "uploadTime": {
+              "type": "string",
+              "format": "date-time",
+              "description": "ISO 8601 timestamp when the upload completed",
+              "examples": ["2024-01-15T10:30:00Z", "2024-01-15T10:30:00-05:00"]
+            },
+            "originalFilename": {
+              "type": "string",
+              "description": "Original filename as uploaded by the user",
+              "maxLength": 255,
+              "examples": ["quarterly-report.pdf", "contract-final.docx"]
+            },
+            "contentType": {
+              "type": "string",
+              "description": "MIME type of the document",
+              "examples": ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+            }
+          },
+          "required": ["format", "size", "contentType"]
+        }
+      },
+      "required": ["userId", "fileId", "s3Location", "metadata"]
+    }
+  },
+  "required": ["version", "source", "detail-type", "detail"],
+  "examples": [
+    {
+      "version": "1.0",
+      "source": "custom.upload-service",
+      "detail-type": "Document Uploaded",
+      "detail": {
+        "userId": "user-123-abc-def",
+        "fileId": "550e8400-e29b-41d4-a716-446655440000",
+        "s3Location": {
+          "bucket": "document-uploads-prod",
+          "key": "user-123-abc-def/550e8400-e29b-41d4-a716-446655440000/quarterly-report.pdf"
+        },
+        "metadata": {
+          "format": "pdf",
+          "pageCount": 42,
+          "isScanned": false,
+          "isEncrypted": false,
+          "language": "en",
+          "size": 2097152,
+          "uploadTime": "2024-01-15T10:30:00Z",
+          "originalFilename": "quarterly-report.pdf",
+          "contentType": "application/pdf"
+        }
+      }
+    }
+  ]
+}

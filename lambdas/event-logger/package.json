@@ -1,0 +1,20 @@
+{
+  "name": "event-logger",
+  "version": "1.0.0",
+  "description": "Lambda function to log EventBridge events for monitoring and debugging",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "package": "zip -r function.zip index.js node_modules"
+  },
+  "keywords": [
+    "eventbridge",
+    "logging",
+    "monitoring"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "aws-sdk": "^2.1450.0"
+  }
+}

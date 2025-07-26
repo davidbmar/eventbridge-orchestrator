@@ -1,0 +1,151 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AudioUploaded",
+  "description": "Event emitted when a user uploads an audio file to S3. This event triggers the transcription workflow and any other audio processing services.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": "1.0",
+      "description": "Schema version for this event type. Used for backward compatibility."
+    },
+    "source": {
+      "const": "custom.upload-service",
+      "description": "Event source identifier for EventBridge routing rules"
+    },
+    "detail-type": {
+      "const": "Audio Uploaded",
+      "description": "Event type for EventBridge content-based filtering"
+    },
+    "detail": {
+      "type": "object",
+      "description": "The main event payload containing audio upload details",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Cognito user ID of the person who uploaded the file",
+          "pattern": "^[a-zA-Z0-9-]+$",
+          "examples": ["user-123-abc-def", "550e8400-e29b-41d4-a716-446655440000"]
+        },
+        "fileId": {
+          "type": "string",
+          "description": "Unique identifier for this upload. Generated as UUID v4 by the frontend Lambda.",
+          "format": "uuid",
+          "examples": ["550e8400-e29b-41d4-a716-446655440000", "6ba7b810-9dad-11d1-80b4-00c04fd430c8"]
+        },
+        "s3Location": {
+          "type": "object",
+          "description": "S3 location where the audio file is stored",
+          "properties": {
+            "bucket": {
+              "type": "string",
+              "description": "S3 bucket name where audio files are stored",
+              "pattern": "^[a-z0-9.-]+$",
+              "examples": ["audio-uploads-prod", "audio-uploads-dev"]
+            },
+            "key": {
+              "type": "string",
+              "description": "S3 object key (path) for the uploaded file. Format: userId/fileId/filename",
+              "examples": [
+                "user-123/550e8400-e29b-41d4-a716-446655440000/recording.mp3",
+                "user-456/6ba7b810-9dad-11d1-80b4-00c04fd430c8/interview.wav"
+              ]
+            }
+          },
+          "required": ["bucket", "key"]
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Audio-specific metadata",
+          "properties": {
+            "duration": {
+              "type": "number",
+              "description": "Audio duration in seconds (if known at upload time)",
+              "minimum": 0,
+              "maximum": 14400,
+              "$comment": "Max 4 hours to prevent abuse",
+              "examples": [180.5, 3600]
+            },
+            "format": {
+              "type": "string",
+              "description": "Audio format/codec of the uploaded file",
+              "enum": ["mp3", "wav", "m4a", "flac", "ogg", "webm", "aac"],
+              "examples": ["mp3", "wav"]
+            },
+            "bitrate": {
+              "type": "number",
+              "description": "Audio bitrate in bits per second",
+              "examples": [128000, 320000]
+            },
+            "sampleRate": {
+              "type": "number",
+              "description": "Audio sample rate in Hz",
+              "examples": [44100, 48000]
+            },
+            "channels": {
+              "type": "integer",
+              "description": "Number of audio channels (1=mono, 2=stereo)",
+              "minimum": 1,
+              "maximum": 8,
+              "examples": [1, 2]
+            },
+            "size": {
+              "type": "number",
+              "description": "File size in bytes",
+              "minimum": 0,
+              "maximum": 5368709120,
+              "$comment": "Max 5GB file size limit",
+              "examples": [1048576, 52428800]
+            },
+            "uploadTime": {
+              "type": "string",
+              "format": "date-time",
+              "description": "ISO 8601 timestamp when the upload completed",
+              "examples": ["2024-01-15T10:30:00Z", "2024-01-15T10:30:00-05:00"]
+            },
+            "originalFilename": {
+              "type": "string",
+              "description": "Original filename as uploaded by the user",
+              "maxLength": 255,
+              "examples": ["interview-with-john.mp3", "podcast-episode-42.wav"]
+            },
+            "contentType": {
+              "type": "string",
+              "description": "MIME type of the audio file",
+              "pattern": "^audio/",
+              "examples": ["audio/mpeg", "audio/wav", "audio/x-m4a"]
+            }
+          },
+          "required": ["format", "size", "contentType"]
+        }
+      },
+      "required": ["userId", "fileId", "s3Location", "metadata"]
+    }
+  },
+  "required": ["version", "source", "detail-type", "detail"],
+  "examples": [
+    {
+      "version": "1.0",
+      "source": "custom.upload-service",
+      "detail-type": "Audio Uploaded",
+      "detail": {
+        "userId": "user-123-abc-def",
+        "fileId": "550e8400-e29b-41d4-a716-446655440000",
+        "s3Location": {
+          "bucket": "audio-uploads-prod",
+          "key": "user-123-abc-def/550e8400-e29b-41d4-a716-446655440000/interview.mp3"
+        },
+        "metadata": {
+          "duration": 1800,
+          "format": "mp3",
+          "bitrate": 128000,
+          "sampleRate": 44100,
+          "channels": 2,
+          "size": 28800000,
+          "uploadTime": "2024-01-15T10:30:00Z",
+          "originalFilename": "interview.mp3",
+          "contentType": "audio/mpeg"
+        }
+      }
+    }
+  ]
+}

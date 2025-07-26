@@ -1,0 +1,173 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UserRegistered",
+  "description": "Event emitted when a new user successfully registers through Cognito. This event can trigger welcome emails, initial setup, or analytics workflows.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": "1.0",
+      "description": "Schema version for this event type. Used for backward compatibility."
+    },
+    "source": {
+      "const": "custom.auth-service",
+      "description": "Event source identifier for EventBridge routing rules"
+    },
+    "detail-type": {
+      "const": "User Registered",
+      "description": "Event type for EventBridge content-based filtering"
+    },
+    "detail": {
+      "type": "object",
+      "description": "The main event payload containing user registration details",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Cognito user ID (sub) for the newly registered user",
+          "pattern": "^[a-zA-Z0-9-]+$",
+          "examples": ["550e8400-e29b-41d4-a716-446655440000"]
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User's email address",
+          "examples": ["john.doe@example.com", "jane.smith@company.org"]
+        },
+        "emailVerified": {
+          "type": "boolean",
+          "description": "Whether the email was verified at registration time",
+          "examples": [true, false]
+        },
+        "username": {
+          "type": "string",
+          "description": "Username chosen by the user (may be same as email)",
+          "minLength": 3,
+          "maxLength": 128,
+          "examples": ["johndoe", "jane_smith_92"]
+        },
+        "registrationMethod": {
+          "type": "string",
+          "description": "How the user registered",
+          "enum": ["email", "social-google", "social-facebook", "social-apple", "saml", "admin-created"],
+          "examples": ["email", "social-google"]
+        },
+        "profile": {
+          "type": "object",
+          "description": "Optional profile information provided at registration",
+          "properties": {
+            "firstName": {
+              "type": "string",
+              "description": "User's first name",
+              "examples": ["John", "Jane"]
+            },
+            "lastName": {
+              "type": "string",
+              "description": "User's last name",
+              "examples": ["Doe", "Smith"]
+            },
+            "preferredLanguage": {
+              "type": "string",
+              "description": "User's preferred language (ISO 639-1 code)",
+              "pattern": "^[a-z]{2}$",
+              "examples": ["en", "es", "fr"]
+            },
+            "timezone": {
+              "type": "string",
+              "description": "User's timezone",
+              "examples": ["America/New_York", "Europe/London", "Asia/Tokyo"]
+            }
+          }
+        },
+        "subscription": {
+          "type": "object",
+          "description": "Initial subscription/plan information",
+          "properties": {
+            "plan": {
+              "type": "string",
+              "description": "Subscription plan at registration",
+              "enum": ["free", "trial", "basic", "pro", "enterprise"],
+              "examples": ["free", "trial"]
+            },
+            "trialEndsAt": {
+              "type": "string",
+              "format": "date-time",
+              "description": "ISO 8601 timestamp when trial period ends (if applicable)",
+              "examples": ["2024-02-15T10:30:00Z"]
+            }
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Additional registration metadata",
+          "properties": {
+            "ipAddress": {
+              "type": "string",
+              "description": "IP address used during registration",
+              "examples": ["192.168.1.1", "2001:0db8:85a3:0000:0000:8a2e:0370:7334"]
+            },
+            "userAgent": {
+              "type": "string",
+              "description": "Browser user agent string",
+              "examples": ["Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"]
+            },
+            "referrer": {
+              "type": "string",
+              "description": "Referrer URL if user came from external site",
+              "format": "uri",
+              "examples": ["https://blog.example.com/signup", "https://google.com"]
+            },
+            "utmSource": {
+              "type": "string",
+              "description": "UTM source parameter for marketing attribution",
+              "examples": ["google", "newsletter", "partner-site"]
+            },
+            "utmCampaign": {
+              "type": "string",
+              "description": "UTM campaign parameter",
+              "examples": ["spring-2024", "black-friday"]
+            }
+          }
+        },
+        "registeredAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when registration completed",
+          "examples": ["2024-01-15T10:30:00Z"]
+        }
+      },
+      "required": ["userId", "email", "username", "registrationMethod", "registeredAt"]
+    }
+  },
+  "required": ["version", "source", "detail-type", "detail"],
+  "examples": [
+    {
+      "version": "1.0",
+      "source": "custom.auth-service",
+      "detail-type": "User Registered",
+      "detail": {
+        "userId": "550e8400-e29b-41d4-a716-446655440000",
+        "email": "john.doe@example.com",
+        "emailVerified": true,
+        "username": "johndoe",
+        "registrationMethod": "email",
+        "profile": {
+          "firstName": "John",
+          "lastName": "Doe",
+          "preferredLanguage": "en",
+          "timezone": "America/New_York"
+        },
+        "subscription": {
+          "plan": "trial",
+          "trialEndsAt": "2024-02-15T10:30:00Z"
+        },
+        "metadata": {
+          "ipAddress": "192.168.1.100",
+          "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+          "referrer": "https://blog.example.com/best-audio-tools",
+          "utmSource": "blog",
+          "utmCampaign": "content-marketing"
+        },
+        "registeredAt": "2024-01-15T10:30:00Z"
+      }
+    }
+  ]
+}

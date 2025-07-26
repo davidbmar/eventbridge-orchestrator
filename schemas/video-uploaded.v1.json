@@ -1,0 +1,186 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VideoUploaded",
+  "description": "Event emitted when a user uploads a video file to S3. This event can trigger transcoding, thumbnail generation, or video analysis workflows.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": "1.0",
+      "description": "Schema version for this event type. Used for backward compatibility."
+    },
+    "source": {
+      "const": "custom.upload-service",
+      "description": "Event source identifier for EventBridge routing rules"
+    },
+    "detail-type": {
+      "const": "Video Uploaded",
+      "description": "Event type for EventBridge content-based filtering"
+    },
+    "detail": {
+      "type": "object",
+      "description": "The main event payload containing video upload details",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Cognito user ID of the person who uploaded the file",
+          "pattern": "^[a-zA-Z0-9-]+$",
+          "examples": ["user-123-abc-def", "550e8400-e29b-41d4-a716-446655440000"]
+        },
+        "fileId": {
+          "type": "string",
+          "description": "Unique identifier for this upload. Generated as UUID v4 by the frontend Lambda.",
+          "format": "uuid",
+          "examples": ["550e8400-e29b-41d4-a716-446655440000", "6ba7b810-9dad-11d1-80b4-00c04fd430c8"]
+        },
+        "s3Location": {
+          "type": "object",
+          "description": "S3 location where the video is stored",
+          "properties": {
+            "bucket": {
+              "type": "string",
+              "description": "S3 bucket name where videos are stored",
+              "pattern": "^[a-z0-9.-]+$",
+              "examples": ["video-uploads-prod", "video-uploads-dev"]
+            },
+            "key": {
+              "type": "string",
+              "description": "S3 object key (path) for the uploaded file. Format: userId/fileId/filename",
+              "examples": [
+                "user-123/550e8400-e29b-41d4-a716-446655440000/presentation.mp4",
+                "user-456/6ba7b810-9dad-11d1-80b4-00c04fd430c8/tutorial.mov"
+              ]
+            }
+          },
+          "required": ["bucket", "key"]
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Video-specific metadata",
+          "properties": {
+            "format": {
+              "type": "string",
+              "description": "Video container format",
+              "enum": ["mp4", "avi", "mov", "wmv", "flv", "mkv", "webm", "m4v", "mpg", "mpeg"],
+              "examples": ["mp4", "mov"]
+            },
+            "codec": {
+              "type": "string",
+              "description": "Video codec used for encoding",
+              "examples": ["h264", "h265", "vp8", "vp9", "av1"]
+            },
+            "duration": {
+              "type": "number",
+              "description": "Video duration in seconds",
+              "minimum": 0,
+              "maximum": 43200,
+              "$comment": "Max 12 hours to prevent abuse",
+              "examples": [180.5, 3600.25]
+            },
+            "resolution": {
+              "type": "object",
+              "description": "Video resolution details",
+              "properties": {
+                "width": {
+                  "type": "integer",
+                  "description": "Video width in pixels",
+                  "minimum": 1,
+                  "examples": [1920, 1280, 3840]
+                },
+                "height": {
+                  "type": "integer",
+                  "description": "Video height in pixels",
+                  "minimum": 1,
+                  "examples": [1080, 720, 2160]
+                }
+              },
+              "required": ["width", "height"]
+            },
+            "frameRate": {
+              "type": "number",
+              "description": "Video frame rate in frames per second",
+              "minimum": 1,
+              "maximum": 240,
+              "examples": [24, 29.97, 30, 60]
+            },
+            "bitrate": {
+              "type": "number",
+              "description": "Video bitrate in bits per second",
+              "examples": [5000000, 10000000]
+            },
+            "hasAudio": {
+              "type": "boolean",
+              "description": "Whether the video contains an audio track",
+              "examples": [true, false]
+            },
+            "audioCodec": {
+              "type": "string",
+              "description": "Audio codec if hasAudio is true",
+              "examples": ["aac", "mp3", "opus", "vorbis"]
+            },
+            "size": {
+              "type": "number",
+              "description": "File size in bytes",
+              "minimum": 0,
+              "maximum": 10737418240,
+              "$comment": "Max 10GB file size limit for videos",
+              "examples": [104857600, 524288000]
+            },
+            "uploadTime": {
+              "type": "string",
+              "format": "date-time",
+              "description": "ISO 8601 timestamp when the upload completed",
+              "examples": ["2024-01-15T10:30:00Z", "2024-01-15T10:30:00-05:00"]
+            },
+            "originalFilename": {
+              "type": "string",
+              "description": "Original filename as uploaded by the user",
+              "maxLength": 255,
+              "examples": ["presentation-final.mp4", "tutorial-part-1.mov"]
+            },
+            "contentType": {
+              "type": "string",
+              "description": "MIME type of the video",
+              "pattern": "^video/",
+              "examples": ["video/mp4", "video/quicktime", "video/webm"]
+            }
+          },
+          "required": ["format", "size", "contentType"]
+        }
+      },
+      "required": ["userId", "fileId", "s3Location", "metadata"]
+    }
+  },
+  "required": ["version", "source", "detail-type", "detail"],
+  "examples": [
+    {
+      "version": "1.0",
+      "source": "custom.upload-service",
+      "detail-type": "Video Uploaded",
+      "detail": {
+        "userId": "user-123-abc-def",
+        "fileId": "550e8400-e29b-41d4-a716-446655440000",
+        "s3Location": {
+          "bucket": "video-uploads-prod",
+          "key": "user-123-abc-def/550e8400-e29b-41d4-a716-446655440000/presentation.mp4"
+        },
+        "metadata": {
+          "format": "mp4",
+          "codec": "h264",
+          "duration": 600.5,
+          "resolution": {
+            "width": 1920,
+            "height": 1080
+          },
+          "frameRate": 30,
+          "bitrate": 5000000,
+          "hasAudio": true,
+          "audioCodec": "aac",
+          "size": 375000000,
+          "uploadTime": "2024-01-15T10:30:00Z",
+          "originalFilename": "presentation.mp4",
+          "contentType": "video/mp4"
+        }
+      }
+    }
+  ]
+}
