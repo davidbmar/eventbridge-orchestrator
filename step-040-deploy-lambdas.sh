@@ -10,13 +10,40 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Load deployment config
-if [ ! -f deployment-config.env ]; then
-    echo -e "${RED}❌ deployment-config.env not found. Please run step-020 first.${NC}"
-    exit 1
+# Load configuration - try multiple sources
+if [ -f deployment-config.env ]; then
+    source deployment-config.env
+    echo -e "${GREEN}✅ Loaded configuration from deployment-config.env${NC}"
+elif [ -f ".env" ]; then
+    source .env
+    echo -e "${YELLOW}⚠️  Using .env configuration (deployment-config.env not found)${NC}"
+    # Create deployment-config.env from .env for consistency
+    cat > deployment-config.env << EOF
+AWS_REGION=${AWS_REGION:-us-east-2}
+ENVIRONMENT=${ENVIRONMENT:-dev}
+EVENT_BUS_NAME=${EVENT_BUS_NAME:-default}
+PROJECT_NAME=${PROJECT_NAME:-eventbridge-orchestrator}
+DEPLOYMENT_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+EOF
+    echo -e "${GREEN}✅ Created deployment-config.env from .env${NC}"
+else
+    echo -e "${YELLOW}⚠️  No configuration files found. Using defaults...${NC}"
+    AWS_REGION="us-east-2"
+    ENVIRONMENT="dev"
+    EVENT_BUS_NAME="default"
+    PROJECT_NAME="eventbridge-orchestrator"
+    
+    # Create deployment-config.env with defaults
+    cat > deployment-config.env << EOF
+AWS_REGION=${AWS_REGION}
+ENVIRONMENT=${ENVIRONMENT}
+EVENT_BUS_NAME=${EVENT_BUS_NAME}
+PROJECT_NAME=${PROJECT_NAME}
+DEPLOYMENT_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+EOF
+    echo -e "${GREEN}✅ Created deployment-config.env with defaults${NC}"
 fi
 
-source deployment-config.env
 echo -e "${BLUE}Using AWS region: ${AWS_REGION}${NC}"
 echo -e "${BLUE}Event bus: ${EVENT_BUS_NAME}${NC}"
 
@@ -43,6 +70,9 @@ echo -e "${YELLOW}📦 Creating Lambda deployment packages...${NC}"
 
 # Event Logger Lambda
 cd lambdas/event-logger
+
+# Install npm dependencies 
+echo -e "${BLUE}Installing Lambda dependencies...${NC}"
 npm install --production
 zip -r event-logger.zip index.js node_modules/ package.json
 echo -e "${GREEN}✅ Event logger package created${NC}"

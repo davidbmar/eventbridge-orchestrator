@@ -10,13 +10,23 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Load deployment config
-if [ ! -f deployment-config.env ]; then
-    echo -e "${RED}❌ deployment-config.env not found. Please run previous steps first.${NC}"
-    exit 1
+# Load configuration - try multiple sources
+if [ -f deployment-config.env ]; then
+    source deployment-config.env
+    echo -e "${GREEN}✅ Loaded configuration from deployment-config.env${NC}"
+elif [ -f ".env" ]; then
+    source .env
+    echo -e "${YELLOW}⚠️  Using .env configuration (deployment-config.env not found)${NC}"
+    AWS_REGION=${AWS_REGION:-us-east-2}
+    ENVIRONMENT=${ENVIRONMENT:-dev}
+    EVENT_BUS_NAME=${EVENT_BUS_NAME:-default}
+else
+    echo -e "${YELLOW}⚠️  No configuration files found. Using defaults...${NC}"
+    AWS_REGION="us-east-2"
+    ENVIRONMENT="dev"
+    EVENT_BUS_NAME="default"
 fi
 
-source deployment-config.env
 echo -e "${BLUE}Testing in region: ${AWS_REGION}${NC}"
 echo -e "${BLUE}Event bus: ${EVENT_BUS_NAME}${NC}"
 
