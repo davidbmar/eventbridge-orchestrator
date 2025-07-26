@@ -181,6 +181,65 @@ eventbridge-orchestrator/
 
 ---
 
+## **🚀 Quick Start Deployment**
+
+Deploy the complete EventBridge orchestrator in 5 simple steps:
+
+### **Fresh GitHub Checkout Setup**
+
+```bash
+# Clone and deploy
+git clone https://github.com/davidbmar/eventbridge-orchestrator.git
+cd eventbridge-orchestrator
+
+# Run deployment steps in order
+./step-000-interactive-setup.sh      # Interactive configuration
+./step-010-setup-iam-permissions.sh  # AWS IAM permissions
+./step-020-deploy-infrastructure.sh  # EventBridge + Terraform  
+./step-040-deploy-lambdas.sh        # Lambda functions
+./step-050-test-events.sh           # End-to-end testing
+```
+
+### **What Each Step Does**
+
+| Step | Name | Description | Creates |
+|------|------|-------------|---------|
+| **000** | Interactive Setup | Configures environment variables and AWS settings | `.env` file, Terraform variables |
+| **010** | IAM Permissions | Sets up comprehensive AWS permissions for deployment | User IAM policies |
+| **020** | Infrastructure | Deploys EventBridge, schemas, rules, and IAM roles via Terraform | EventBridge bus, Schema registry, SQS DLQ |
+| **040** | Lambda Functions | Deploys event-logger and dead-letter-processor functions | Lambda functions with EventBridge targets |
+| **050** | Testing | Tests all event types and validates end-to-end flow | Test results, log verification |
+
+### **One-Command Cleanup**
+
+```bash
+./step-999-destroy-everything.sh  # Removes ALL resources
+```
+
+---
+
+## **📋 Components Overview**
+
+### **Core Infrastructure**
+- **🔄 EventBridge Custom Bus**: `{environment}-application-events`
+- **📋 Schema Registry**: JSON Schema validation for all events
+- **⚡ Lambda Functions**: Event logging and dead-letter processing
+- **📨 SQS Dead Letter Queue**: Failed event handling
+- **🔐 IAM Roles**: Cross-service permissions
+
+### **Event Types Supported**
+- 🎵 **Audio Uploaded** - Audio file processing triggers
+- 📄 **Document Uploaded** - Document processing events  
+- 🎬 **Video Uploaded** - Video processing triggers
+- 📝 **Transcription Completed** - Audio processing results
+- 👤 **User Registered** - User lifecycle events
+
+### **Integration Points**
+- **Frontend Integration**: [`audio-ui-cf-s3-lambda-cognito`](https://github.com/davidbmar/audio-ui-cf-s3-lambda-cognito) with EventBridge publishing
+- **Processing Integration**: [`transcription-sqs-spot-s3`](https://github.com/davidbmar/transcription-sqs-spot-s3) event consumption
+
+---
+
 ## **Common Questions**
 
 ### **Q: What happens if my service is offline when events are sent?**
@@ -196,5 +255,11 @@ eventbridge-orchestrator/
 ### **Q: How do I replay old events?**
 
 * EventBridge can archive and replay events. You can also reprocess from logs or dead-letter queues.
+
+### **Q: How do I integrate my existing services?**
+
+1. Use the IAM roles created by step-020 for EventBridge permissions
+2. Reference the schemas in `/schemas/` for event structure
+3. See integration examples in the audio upload system repository
 
 

@@ -73,4 +73,7 @@ private-key.pem
 # Backup files
 *.bak
 *.backup
-*~
+*~deployment-config.env
+test-results.json
+.env
+.env.backup.*

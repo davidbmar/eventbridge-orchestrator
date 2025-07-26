@@ -8,13 +8,24 @@ This guide provides step-by-step instructions to set up the EventBridge orchestr
 - Ubuntu/Linux environment (or WSL on Windows)
 - Internet connection for downloading dependencies
 
-## Quick Start
+## 🚀 Quick Start
 
-Run these numbered scripts in order:
+Run these numbered scripts in order for a complete deployment:
+
+### Step 0: Interactive Setup & Configuration
+```bash
+./step-000-interactive-setup.sh
+```
+**What it does:**
+- Interactive configuration wizard
+- Creates `.env` file with your preferences
+- Configures AWS region, environment, S3 buckets
+- Sets up EventBridge and Lambda options
+- Generates Terraform variables automatically
 
 ### Step 1: Setup IAM Permissions
 ```bash
-./step-001-setup-iam-permissions.sh
+./step-010-setup-iam-permissions.sh
 ```
 **What it does:**
 - Creates comprehensive IAM policy for EventBridge, Lambda, SQS, and Schemas
@@ -23,35 +34,36 @@ Run these numbered scripts in order:
 
 ### Step 2: Deploy Infrastructure  
 ```bash
-./step-002-deploy-infrastructure.sh
+./step-020-deploy-infrastructure.sh
 ```
 **What it does:**
 - Installs Terraform if not present
-- Configures Terraform for your AWS region
 - Deploys EventBridge custom bus, rules, schemas, and IAM roles
-- Creates SQS dead letter queue
-- Saves deployment configuration for next steps
+- Creates SQS dead letter queue and monitoring
+- Creates deployment-config.env for subsequent steps
 
-### Step 3: Deploy Lambda Functions
+### Step 4: Deploy Lambda Functions
 ```bash
-./step-003-deploy-lambdas.sh
+./step-040-deploy-lambdas.sh
 ```
 **What it does:**
-- Installs Node.js if not present
+- Installs Node.js and dependencies if not present
 - Packages and deploys event-logger Lambda function
 - Packages and deploys dead-letter-processor Lambda function
-- Configures Lambda permissions
+- Connects Lambda functions to EventBridge rules with proper permissions
+- **Robust fallback**: Works with any config source or defaults
 
-### Step 4: Test the System
+### Step 5: Test the System
 ```bash
-./step-004-test-events.sh
+./step-050-test-events.sh
 ```
 **What it does:**
 - Tests all event types (Audio, Document, Video, Transcription)
 - Publishes sample events to EventBridge
 - Tests batch event publishing
-- Checks Lambda logs
-- Creates test results summary
+- Verifies Lambda functions receive and process events
+- Checks CloudWatch logs for end-to-end verification
+- Creates detailed test results summary
 
 ## Manual Setup (Alternative)
 
@@ -111,25 +123,34 @@ aws events put-events --entries file://examples/test-audio-upload-event.json --r
 
 ### Common Issues
 
-**IAM Permission Errors:**
-- Make sure step 1 completed successfully
+**Step-000 Configuration Issues:**
+- Ensure AWS CLI is configured: `aws configure list`
+- Check AWS credentials have basic permissions
+- If `.env` exists, you can update specific values manually
+
+**IAM Permission Errors (Step-010):**
+- Make sure step-010 completed successfully  
 - Check that your AWS CLI is configured with the correct user
 - Some AWS organizations have additional restrictions
+- Verify with: `aws sts get-caller-identity`
 
-**Terraform Deployment Fails:**
-- Check that you have sufficient IAM permissions
-- Verify your AWS region is set correctly
+**Terraform Deployment Fails (Step-020):**
+- Check that step-010 IAM permissions completed
+- Verify your AWS region is set correctly in `.env`
 - Some resources may require additional permissions in enterprise environments
+- Run `terraform plan` in the terraform/ directory to diagnose
 
-**Lambda Deployment Fails:**
-- Ensure Node.js is installed (`node --version`)
-- Check that the IAM role exists
-- Verify the zip files were created in the lambdas directories
+**Lambda Deployment Fails (Step-040):**
+- **New robust design**: Step-040 now works even without deployment-config.env
+- Ensure Node.js is installed (auto-installed if missing)
+- Check that EventBridge infrastructure exists (from step-020)
+- Scripts now fall back gracefully to defaults if config is missing
 
-**Events Not Publishing:**
-- Verify EventBridge permissions with: `aws events describe-event-bus --name default`
-- Check that your AWS region matches the deployment region
-- Ensure JSON syntax is correct in test files
+**Events Not Publishing (Step-050):**
+- Verify EventBridge permissions and bus exists
+- Check that your AWS region matches deployment region
+- **New feature**: Step-050 validates Lambda log integration
+- Use test results in `test-results.json` for debugging
 
 ### Getting Help
 
@@ -144,16 +165,19 @@ After setup, your directory will contain:
 
 ```
 eventbridge-orchestrator/
-├── step-001-setup-iam-permissions.sh    # IAM setup
-├── step-002-deploy-infrastructure.sh    # Terraform deployment  
-├── step-003-deploy-lambdas.sh          # Lambda deployment
-├── step-004-test-events.sh             # Testing script
-├── deployment-config.env               # Generated config
-├── test-results.json                   # Test results
-├── schemas/                            # Event schemas
-├── terraform/                          # Infrastructure code
-├── lambdas/                           # Lambda functions
-└── examples/                          # Test event files
+├── step-000-interactive-setup.sh       # Interactive configuration
+├── step-010-setup-iam-permissions.sh   # IAM setup
+├── step-020-deploy-infrastructure.sh   # Terraform deployment  
+├── step-040-deploy-lambdas.sh         # Lambda deployment
+├── step-050-test-events.sh            # Testing script
+├── step-999-destroy-everything.sh     # Complete cleanup
+├── .env                               # User configuration
+├── deployment-config.env              # Generated deployment config
+├── test-results.json                  # Test results
+├── schemas/                           # Event schemas
+├── terraform/                         # Infrastructure code
+├── lambdas/                          # Lambda functions
+└── examples/                         # Test event files
 ```
 
 ## What's Created
