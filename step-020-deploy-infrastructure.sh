@@ -93,21 +93,22 @@ if [ $? -eq 0 ]; then
     EVENT_BUS_NAME=$(terraform output -raw event_bus_name 2>/dev/null || echo "default")
     echo -e "${BLUE}📝 Event Bus Name: ${EVENT_BUS_NAME}${NC}"
     
-    # Update .env with deployment results
+    # Create deployment config file for subsequent steps
     cd ..
+    cat > deployment-config.env << EOF
+AWS_REGION=${AWS_REGION}
+ENVIRONMENT=${ENVIRONMENT}
+EVENT_BUS_NAME=${EVENT_BUS_NAME}
+PROJECT_NAME=${PROJECT_NAME}
+DEPLOYMENT_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+EOF
+    
+    # Also update .env with deployment info if it exists
     if [ -f ".env" ]; then
-        # Update existing .env with deployment info
         sed -i "s/^DEPLOYMENT_TIMESTAMP=.*/DEPLOYMENT_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")/" .env
         if ! grep -q "DEPLOYMENT_TIMESTAMP" .env; then
             echo "DEPLOYMENT_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .env
         fi
-    else
-        # Create basic deployment config
-        cat > deployment-config.env << EOF
-AWS_REGION=${AWS_REGION}
-EVENT_BUS_NAME=${EVENT_BUS_NAME}
-DEPLOYMENT_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-EOF
     fi
     
     echo -e "${GREEN}🎉 Step 2 completed successfully!${NC}"
@@ -121,7 +122,9 @@ else
     cd ..
     cat > deployment-config.env << EOF
 AWS_REGION=${AWS_REGION}
+ENVIRONMENT=${ENVIRONMENT}
 EVENT_BUS_NAME=default
+PROJECT_NAME=${PROJECT_NAME}
 DEPLOYMENT_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 EOF
     
