@@ -29,6 +29,15 @@ fi
 
 echo -e "${GREEN}✅ Node.js version: $(node --version)${NC}"
 
+# Install zip if not present
+if ! command -v zip &> /dev/null; then
+    echo -e "${YELLOW}📦 Installing zip utility...${NC}"
+    sudo apt-get update
+    sudo apt-get install -y zip
+fi
+
+echo -e "${GREEN}✅ Zip utility available${NC}"
+
 # Create deployment packages
 echo -e "${YELLOW}📦 Creating Lambda deployment packages...${NC}"
 
@@ -126,6 +135,54 @@ echo -e "${GREEN}✅ Dead Letter Processor deployed: ${DLQ_PROCESSOR_ARN}${NC}"
 # Wait for functions to be ready
 echo -e "${YELLOW}⏳ Waiting for Lambda functions to be ready...${NC}"
 sleep 10
+
+# Connect Lambda functions to EventBridge rules
+if [ ! -z "$EVENT_BUS_NAME" ] && [ "$EVENT_BUS_NAME" != "default" ]; then
+    echo -e "${YELLOW}🔗 Connecting Lambda functions to EventBridge rules...${NC}"
+    
+    # Function to add Lambda permissions and targets
+    connect_lambda_to_rule() {
+        local lambda_arn="$1"
+        local rule_name="$2"
+        local function_name="$3"
+        
+        echo -e "${BLUE}  Connecting ${function_name} to ${rule_name}...${NC}"
+        
+        # Add permission for EventBridge to invoke Lambda
+        aws lambda add-permission \
+            --function-name "${function_name}" \
+            --statement-id "AllowEventBridgeInvoke-${rule_name}" \
+            --action "lambda:InvokeFunction" \
+            --principal "events.amazonaws.com" \
+            --source-arn "arn:aws:events:${AWS_REGION}:$(aws sts get-caller-identity --query Account --output text):rule/${EVENT_BUS_NAME}/${rule_name}" \
+            --region "${AWS_REGION}" > /dev/null 2>&1
+        
+        # Connect Lambda as target to the rule
+        aws events put-targets \
+            --rule "${rule_name}" \
+            --event-bus-name "${EVENT_BUS_NAME}" \
+            --targets "Id"="1","Arn"="${lambda_arn}" \
+            --region "${AWS_REGION}" > /dev/null 2>&1
+        
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}  ✅ ${function_name} connected successfully${NC}"
+        else
+            echo -e "${YELLOW}  ⚠️  Failed to connect ${function_name}${NC}"
+        fi
+    }
+    
+    # Connect event-logger to all-events rule
+    RULE_NAME="${ENVIRONMENT}-all-events-to-logger"
+    if aws events describe-rule --name "${RULE_NAME}" --event-bus-name "${EVENT_BUS_NAME}" --region "${AWS_REGION}" > /dev/null 2>&1; then
+        connect_lambda_to_rule "${EVENT_LOGGER_ARN}" "${RULE_NAME}" "dev-event-logger"
+    else
+        echo -e "${YELLOW}  ⚠️  Rule ${RULE_NAME} not found${NC}"
+    fi
+    
+    echo -e "${GREEN}✅ Lambda connection process completed${NC}"
+else
+    echo -e "${YELLOW}⚠️  Using default event bus - no custom rules to connect${NC}"
+fi
 
 # Update deployment config
 cat >> deployment-config.env << EOF

@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-07-26T20:48:34Z",
+  "region": "us-east-2",
+  "eventBus": "dev-application-events",
+  "tests": {
+    "audioUpload": {
+      "status": "passed",
+      "eventId": "8e16d993-8b29-9aa3-a2d3-63b45dd14f77"
+    },
+    "transcriptionCompleted": {
+      "status": "passed",
+      "eventId": "c484740a-062f-e340-e17f-c2c674ee0fe6"
+    },
+    "documentUpload": {
+      "status": "passed",
+      "eventId": "8a2b4a08-12c8-a727-9de2-ffb2bfee5cf2"
+    },
+    "batchEvents": {
+      "status": "passed",
+      "failedCount": "0"
+    }
+  }
+}

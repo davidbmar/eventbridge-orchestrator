@@ -107,13 +107,14 @@ else
     echo -e "${RED}❌ Batch Events had ${BATCH_RESULT} failures${NC}"
 fi
 
-# Test 5: Check Lambda Logs (if deployed)
+# Test 5: Check Lambda Logs and Verify End-to-End Flow
 if [ ! -z "$EVENT_LOGGER_ARN" ]; then
-    echo -e "${YELLOW}📋 Test 5: Checking Lambda logs...${NC}"
-    sleep 5  # Give logs time to appear
+    echo -e "${YELLOW}📋 Test 5: Checking Lambda logs and end-to-end flow...${NC}"
+    sleep 10  # Give logs more time to appear
     
+    LOG_GROUP_NAME="/aws/lambda/dev-event-logger"
     LOG_GROUPS=$(aws logs describe-log-groups \
-        --log-group-name-prefix "/aws/lambda/dev-event-logger" \
+        --log-group-name-prefix "${LOG_GROUP_NAME}" \
         --region "${AWS_REGION}" \
         --query 'logGroups[0].logGroupName' \
         --output text 2>/dev/null || echo "None")
@@ -121,9 +122,9 @@ if [ ! -z "$EVENT_LOGGER_ARN" ]; then
     if [ "$LOG_GROUPS" != "None" ] && [ ! -z "$LOG_GROUPS" ]; then
         echo -e "${GREEN}✅ Lambda log group found: ${LOG_GROUPS}${NC}"
         
-        # Get recent log events
-        RECENT_LOGS=$(aws logs describe-log-streams \
-            --log-group-name "$LOG_GROUPS" \
+        # Get the most recent log stream
+        RECENT_LOG_STREAM=$(aws logs describe-log-streams \
+            --log-group-name "${LOG_GROUP_NAME}" \
             --region "${AWS_REGION}" \
             --order-by LastEventTime \
             --descending \
@@ -131,11 +132,48 @@ if [ ! -z "$EVENT_LOGGER_ARN" ]; then
             --query 'logStreams[0].logStreamName' \
             --output text 2>/dev/null || echo "")
         
-        if [ ! -z "$RECENT_LOGS" ]; then
-            echo -e "${BLUE}   Recent log stream: ${RECENT_LOGS}${NC}"
+        if [ ! -z "$RECENT_LOG_STREAM" ] && [ "$RECENT_LOG_STREAM" != "None" ]; then
+            echo -e "${BLUE}   Recent log stream: ${RECENT_LOG_STREAM}${NC}"
+            
+            # Get recent log events to verify Lambda was triggered
+            RECENT_EVENTS=$(aws logs get-log-events \
+                --log-group-name "${LOG_GROUP_NAME}" \
+                --log-stream-name "${RECENT_LOG_STREAM}" \
+                --region "${AWS_REGION}" \
+                --start-time $(($(date +%s)*1000 - 300000)) \
+                --query 'events[?contains(message, `EVENT_RECEIVED`)].message' \
+                --output text 2>/dev/null || echo "")
+            
+            if [ ! -z "$RECENT_EVENTS" ]; then
+                echo -e "${GREEN}   ✅ Lambda successfully processed events!${NC}"
+                echo -e "${BLUE}   📊 Event processing confirmed in logs${NC}"
+            else
+                echo -e "${YELLOW}   ⚠️  No recent event processing found in logs${NC}"
+            fi
+        else
+            echo -e "${YELLOW}   ⚠️  No recent log streams found${NC}"
         fi
     else
-        echo -e "${YELLOW}⚠️  No Lambda logs found yet (Lambda may not be triggered by default bus)${NC}"
+        echo -e "${YELLOW}⚠️  No Lambda logs found - checking EventBridge connection...${NC}"
+        
+        # Check if Lambda is connected as target
+        if [ "${EVENT_BUS_NAME}" != "default" ]; then
+            RULE_NAME="${ENVIRONMENT:-dev}-all-events-to-logger"
+            TARGETS=$(aws events list-targets-by-rule \
+                --rule "${RULE_NAME}" \
+                --event-bus-name "${EVENT_BUS_NAME}" \
+                --region "${AWS_REGION}" \
+                --query 'Targets[0].Arn' \
+                --output text 2>/dev/null || echo "None")
+            
+            if [ "$TARGETS" != "None" ] && [ ! -z "$TARGETS" ]; then
+                echo -e "${GREEN}   ✅ Lambda is connected as EventBridge target${NC}"
+                echo -e "${BLUE}   💡 Events may be published to default bus instead of custom bus${NC}"
+            else
+                echo -e "${YELLOW}   ⚠️  Lambda not connected as EventBridge target${NC}"
+                echo -e "${BLUE}   💡 Run step-003 again to connect Lambda to EventBridge rules${NC}"
+            fi
+        fi
     fi
 fi
 
