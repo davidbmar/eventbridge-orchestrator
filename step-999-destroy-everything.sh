@@ -82,20 +82,20 @@ if [ "${USE_CUSTOM_BUS}" = "true" ] && [ "${EVENT_BUS_NAME}" != "default" ]; the
 fi
 
 # 2. Destroy Terraform-managed resources
-if [ -d "terraform" ] && [ -f "terraform/.terraform.lock.hcl" ]; then
+if [ -d "terraform" ]; then
     echo -e "\n${YELLOW}🏗️  Destroying Terraform infrastructure...${NC}"
     cd terraform
     
-    if terraform state list > /dev/null 2>&1; then
+    if [ -f "terraform.tfstate" ] || terraform state list > /dev/null 2>&1; then
         echo -e "${BLUE}Found Terraform state, destroying resources...${NC}"
         terraform destroy -auto-approve
         echo -e "${GREEN}✅ Terraform destruction completed${NC}"
     else
-        echo -e "${YELLOW}⚠️  No Terraform state found${NC}"
+        echo -e "${YELLOW}⚠️  No Terraform state found, will attempt manual cleanup${NC}"
     fi
     cd ..
 else
-    echo -e "${YELLOW}⚠️  No Terraform state found${NC}"
+    echo -e "${YELLOW}⚠️  No terraform directory found${NC}"
 fi
 
 # 3. Delete Lambda functions
@@ -116,30 +116,58 @@ done
 # 4. Delete EventBridge resources that might not be in Terraform
 echo -e "\n${YELLOW}🔄 Destroying remaining EventBridge resources...${NC}"
 
-# Delete custom event bus if it exists
-if [ "${USE_CUSTOM_BUS}" = "true" ] && [ "${EVENT_BUS_NAME}" != "default" ]; then
-    # Get remaining rules (if any) on the custom bus
-    RULES=$(aws events list-rules --event-bus-name "${EVENT_BUS_NAME}" --region "${AWS_REGION}" --query 'Rules[].Name' --output text 2>/dev/null || echo "")
-    
-    if [ ! -z "$RULES" ]; then
-        for rule in $RULES; do
-            # Remove any remaining targets first
-            TARGET_IDS=$(aws events list-targets-by-rule --rule "$rule" --event-bus-name "${EVENT_BUS_NAME}" --region "${AWS_REGION}" --query 'Targets[].Id' --output text 2>/dev/null || echo "")
-            
-            if [ ! -z "$TARGET_IDS" ]; then
-                safe_run "Removing remaining targets from rule $rule" \
-                    "aws events remove-targets --rule '$rule' --event-bus-name '${EVENT_BUS_NAME}' --ids $TARGET_IDS --region '${AWS_REGION}'"
-            fi
-            
-            # Now delete the rule
-            safe_run "Deleting rule: $rule" \
-                "aws events delete-rule --name '$rule' --event-bus-name '${EVENT_BUS_NAME}' --region '${AWS_REGION}'"
-        done
-    fi
-    
-    safe_run "Deleting custom event bus: ${EVENT_BUS_NAME}" \
-        "aws events delete-event-bus --name '${EVENT_BUS_NAME}' --region '${AWS_REGION}'"
+# Delete EventBridge Archive first
+echo -e "${BLUE}Deleting EventBridge archives...${NC}"
+ARCHIVES=$(aws events list-archives --region "${AWS_REGION}" --query 'Archives[?contains(ArchiveName, `dev-`) || contains(ArchiveName, `'${ENVIRONMENT}'-`)].ArchiveName' --output text 2>/dev/null || echo "")
+if [ ! -z "$ARCHIVES" ]; then
+    for archive in $ARCHIVES; do
+        safe_run "Deleting archive: $archive" \
+            "aws events delete-archive --archive-name '$archive' --region '${AWS_REGION}'"
+    done
 fi
+
+# Delete Schema Discoverer
+echo -e "${BLUE}Deleting Schema discoverers...${NC}"
+DISCOVERERS=$(aws schemas list-discoverers --region "${AWS_REGION}" --query 'Discoverers[?contains(SourceArn, `dev-`) || contains(SourceArn, `'${ENVIRONMENT}'-`)].DiscovererId' --output text 2>/dev/null || echo "")
+if [ ! -z "$DISCOVERERS" ]; then
+    for discoverer in $DISCOVERERS; do
+        safe_run "Deleting discoverer: $discoverer" \
+            "aws schemas delete-discoverer --discoverer-id '$discoverer' --region '${AWS_REGION}'"
+    done
+fi
+
+# Delete all EventBridge rules and buses
+echo -e "${BLUE}Deleting EventBridge rules and buses...${NC}"
+
+# First, list all custom event buses
+CUSTOM_BUSES=$(aws events list-event-buses --region "${AWS_REGION}" --query 'EventBuses[?Name!=`default`].Name' --output text 2>/dev/null || echo "")
+
+for bus in $CUSTOM_BUSES ${EVENT_BUS_NAME}; do
+    if [ ! -z "$bus" ] && [ "$bus" != "default" ]; then
+        # Get all rules on this bus
+        RULES=$(aws events list-rules --event-bus-name "$bus" --region "${AWS_REGION}" --query 'Rules[].Name' --output text 2>/dev/null || echo "")
+        
+        if [ ! -z "$RULES" ]; then
+            for rule in $RULES; do
+                # Remove any remaining targets first
+                TARGET_IDS=$(aws events list-targets-by-rule --rule "$rule" --event-bus-name "$bus" --region "${AWS_REGION}" --query 'Targets[].Id' --output text 2>/dev/null || echo "")
+                
+                if [ ! -z "$TARGET_IDS" ]; then
+                    safe_run "Removing targets from rule $rule on bus $bus" \
+                        "aws events remove-targets --rule '$rule' --event-bus-name '$bus' --ids $TARGET_IDS --region '${AWS_REGION}'"
+                fi
+                
+                # Now delete the rule
+                safe_run "Deleting rule: $rule on bus $bus" \
+                    "aws events delete-rule --name '$rule' --event-bus-name '$bus' --region '${AWS_REGION}'"
+            done
+        fi
+        
+        # Delete the custom bus
+        safe_run "Deleting custom event bus: $bus" \
+            "aws events delete-event-bus --name '$bus' --region '${AWS_REGION}'"
+    fi
+done
 
 # 5. Delete Schema Registry and Schemas
 echo -e "\n${YELLOW}📋 Destroying Schema Registry...${NC}"
@@ -160,16 +188,31 @@ safe_run "Deleting schema registry: ${REGISTRY_NAME}" \
 # 6. Delete SQS Queues
 echo -e "\n${YELLOW}📨 Destroying SQS queues...${NC}"
 
-SQS_QUEUES=(
-    "${ENVIRONMENT}-eventbridge-dlq"
+# Try specific queue names first
+SQS_QUEUE_NAMES=(
     "dev-eventbridge-dlq"
+    "${ENVIRONMENT}-eventbridge-dlq"
 )
 
-for queue in "${SQS_QUEUES[@]}"; do
-    QUEUE_URL=$(aws sqs get-queue-url --queue-name "$queue" --region "${AWS_REGION}" --query 'QueueUrl' --output text 2>/dev/null || echo "")
+for queue_name in "${SQS_QUEUE_NAMES[@]}"; do
+    QUEUE_URL=$(aws sqs get-queue-url --queue-name "$queue_name" --region "${AWS_REGION}" --query 'QueueUrl' --output text 2>/dev/null || echo "")
     if [ ! -z "$QUEUE_URL" ] && [ "$QUEUE_URL" != "None" ]; then
-        safe_run "Deleting SQS queue: $queue" \
+        safe_run "Deleting SQS queue: $queue_name" \
             "aws sqs delete-queue --queue-url '$QUEUE_URL' --region '${AWS_REGION}'"
+    fi
+done
+
+# Also try to list all queues and filter (if permissions allow)
+ALL_QUEUES=$(aws sqs list-queues --region "${AWS_REGION}" --query 'QueueUrls' --output text 2>/dev/null || echo "")
+
+for queue_url in $ALL_QUEUES; do
+    # Extract queue name from URL
+    queue_name=$(echo "$queue_url" | awk -F'/' '{print $NF}')
+    
+    # Check if this is one of our queues
+    if [[ "$queue_name" =~ ^(dev-|${ENVIRONMENT}-).*dlq$ ]] || [[ "$queue_name" =~ eventbridge-dlq$ ]]; then
+        safe_run "Deleting SQS queue: $queue_name" \
+            "aws sqs delete-queue --queue-url '$queue_url' --region '${AWS_REGION}'"
     fi
 done
 
@@ -199,38 +242,39 @@ done
 # 8. Delete IAM Roles and Policies (be careful with this)
 echo -e "\n${YELLOW}🔐 Destroying IAM resources...${NC}"
 
-IAM_ROLES=(
-    "dev-event-publisher-role"
-    "dev-event-processor-role"
-    "dev-eventbridge-dlq-role"
-    "${ENVIRONMENT}-event-publisher-role"
-    "${ENVIRONMENT}-event-processor-role"
-    "${ENVIRONMENT}-eventbridge-dlq-role"
-    "EventProcessorBasicRole"
-)
+# List all IAM roles and filter for our patterns
+ALL_ROLES=$(aws iam list-roles --query 'Roles[].RoleName' --output text 2>/dev/null || echo "")
 
-for role in "${IAM_ROLES[@]}"; do
-    # First detach managed policies
-    ATTACHED_POLICIES=$(aws iam list-attached-role-policies --role-name "$role" --query 'AttachedPolicies[].PolicyArn' --output text 2>/dev/null || echo "")
-    if [ ! -z "$ATTACHED_POLICIES" ]; then
-        for policy in $ATTACHED_POLICIES; do
-            safe_run "Detaching policy $policy from role $role" \
-                "aws iam detach-role-policy --role-name '$role' --policy-arn '$policy'"
-        done
+for role in $ALL_ROLES; do
+    # Check if this is one of our EventBridge-related roles
+    if [[ "$role" =~ ^(dev-|${ENVIRONMENT}-)event-(publisher|processor|logger|handler)-role$ ]] || \
+       [[ "$role" =~ ^(dev-|${ENVIRONMENT}-).*eventbridge.*-role$ ]] || \
+       [[ "$role" =~ ^EventProcessor.*Role$ ]]; then
+
+        echo -e "${BLUE}Processing IAM role: $role${NC}"
+        
+        # First detach managed policies
+        ATTACHED_POLICIES=$(aws iam list-attached-role-policies --role-name "$role" --query 'AttachedPolicies[].PolicyArn' --output text 2>/dev/null || echo "")
+        if [ ! -z "$ATTACHED_POLICIES" ]; then
+            for policy in $ATTACHED_POLICIES; do
+                safe_run "Detaching policy $policy from role $role" \
+                    "aws iam detach-role-policy --role-name '$role' --policy-arn '$policy'"
+            done
+        fi
+        
+        # Delete inline policies
+        INLINE_POLICIES=$(aws iam list-role-policies --role-name "$role" --query 'PolicyNames' --output text 2>/dev/null || echo "")
+        if [ ! -z "$INLINE_POLICIES" ]; then
+            for policy in $INLINE_POLICIES; do
+                safe_run "Deleting inline policy $policy from role $role" \
+                    "aws iam delete-role-policy --role-name '$role' --policy-name '$policy'"
+            done
+        fi
+        
+        # Delete the role
+        safe_run "Deleting IAM role: $role" \
+            "aws iam delete-role --role-name '$role'"
     fi
-    
-    # Delete inline policies
-    INLINE_POLICIES=$(aws iam list-role-policies --role-name "$role" --query 'PolicyNames' --output text 2>/dev/null || echo "")
-    if [ ! -z "$INLINE_POLICIES" ]; then
-        for policy in $INLINE_POLICIES; do
-            safe_run "Deleting inline policy $policy from role $role" \
-                "aws iam delete-role-policy --role-name '$role' --policy-name '$policy'"
-        done
-    fi
-    
-    # Delete the role
-    safe_run "Deleting IAM role: $role" \
-        "aws iam delete-role --role-name '$role'"
 done
 
 # 9. Remove user policies we added
