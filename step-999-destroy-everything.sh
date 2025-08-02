@@ -1,8 +1,31 @@
 #!/bin/bash
 set -e
 
-echo "💥 Step 999: Destroy EventBridge Orchestrator"
-echo "============================================="
+echo "💥 Step 999: Destroy EventBridge Orchestrator - Complete Infrastructure Teardown"
+echo "================================================================================"
+
+echo -e "\n${CYAN}📋 SCRIPT PURPOSE:${NC}"
+echo -e "${BLUE}This script performs complete infrastructure destruction using Terraform and additional cleanup.${NC}"
+echo -e "${BLUE}It should be run AFTER step-998-pre-destroy-cleanup.sh to avoid dependency issues.${NC}"
+echo -e "${BLUE}This script handles Terraform-managed resources and remaining AWS infrastructure.${NC}"
+
+echo -e "\n${CYAN}🔄 WHAT THIS SCRIPT DOES:${NC}"
+echo -e "${BLUE}Phase 1: Dependency validation (checks if pre-cleanup was run)${NC}"
+echo -e "${BLUE}Phase 2: Terraform destroy (EventBridge bus, IAM roles, schema registry)${NC}"
+echo -e "${BLUE}Phase 3: Additional AWS resource cleanup (CloudWatch logs, archives)${NC}"
+echo -e "${BLUE}Phase 4: IAM policy cleanup (removes user permissions)${NC}"
+echo -e "${BLUE}Phase 5: Local file cleanup (Terraform state, deployment artifacts)${NC}"
+
+echo -e "\n${CYAN}🎯 WHY RUN AFTER STEP-998:${NC}"
+echo -e "${BLUE}• Step-998 removes EventBridge dependencies that block Terraform${NC}"
+echo -e "${BLUE}• This script can focus on infrastructure without API dependency issues${NC}"
+echo -e "${BLUE}• Ensures clean, complete environment teardown${NC}"
+echo -e "${BLUE}• Prevents partial failures that leave orphaned resources${NC}"
+
+echo -e "\n${CYAN}⚠️  PREREQUISITES:${NC}"
+echo -e "${BLUE}1. Run step-998-pre-destroy-cleanup.sh first (recommended)${NC}"
+echo -e "${BLUE}2. Ensure you have appropriate AWS permissions${NC}"
+echo -e "${BLUE}3. Verify you're in the correct AWS region and account${NC}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -59,26 +82,55 @@ safe_run() {
     fi
 }
 
-# 1. Pre-cleanup: Remove EventBridge targets before Terraform destroy
-echo -e "\n${YELLOW}🎯 Removing EventBridge targets first...${NC}"
+# 1. Check if pre-destroy cleanup was run
+echo -e "\n${YELLOW}⚠️  IMPORTANT: Dependency Check${NC}"
+echo -e "${BLUE}EventBridge rules with targets can prevent Terraform destroy from completing.${NC}"
+echo -e "${BLUE}If this script fails, run step-998-pre-destroy-cleanup.sh first.${NC}"
 
-if [ "${USE_CUSTOM_BUS}" = "true" ] && [ "${EVENT_BUS_NAME}" != "default" ]; then
-    # Get all rules on the custom bus
-    RULES=$(aws events list-rules --event-bus-name "${EVENT_BUS_NAME}" --region "${AWS_REGION}" --query 'Rules[].Name' --output text 2>/dev/null || echo "")
-    
-    if [ ! -z "$RULES" ]; then
-        for rule in $RULES; do
-            echo -e "${BLUE}Removing targets from rule: $rule${NC}"
-            # Get all target IDs for this rule
-            TARGET_IDS=$(aws events list-targets-by-rule --rule "$rule" --event-bus-name "${EVENT_BUS_NAME}" --region "${AWS_REGION}" --query 'Targets[].Id' --output text 2>/dev/null || echo "")
-            
-            if [ ! -z "$TARGET_IDS" ]; then
-                # Remove all targets
-                safe_run "Removing targets from rule $rule" \
-                    "aws events remove-targets --rule '$rule' --event-bus-name '${EVENT_BUS_NAME}' --ids $TARGET_IDS --region '${AWS_REGION}'"
+# Quick check for common dependency issues
+echo -e "\n${CYAN}🔍 Checking for potential dependency issues...${NC}"
+
+POTENTIAL_ISSUES=0
+
+# Check for EventBridge rules with targets
+for bus_name in "dev-application-events" "${EVENT_BUS_NAME}" "dbm-eventbridge"; do
+    if [ ! -z "$bus_name" ] && [ "$bus_name" != "default" ]; then
+        if aws events describe-event-bus --name "$bus_name" --region "${AWS_REGION}" >/dev/null 2>&1; then
+            RULES_WITH_TARGETS=$(aws events list-rules --event-bus-name "$bus_name" --region "${AWS_REGION}" --query 'Rules[].Name' --output text 2>/dev/null | wc -w)
+            if [ "$RULES_WITH_TARGETS" -gt 0 ]; then
+                echo -e "${YELLOW}⚠️  Found $RULES_WITH_TARGETS EventBridge rules on bus: $bus_name${NC}"
+                POTENTIAL_ISSUES=$((POTENTIAL_ISSUES + 1))
             fi
-        done
+        fi
     fi
+done
+
+# Check for Lambda functions
+LAMBDA_COUNT=$(aws lambda list-functions --region "${AWS_REGION}" --query 'Functions[?contains(FunctionName, `dev-event`)].FunctionName' --output text 2>/dev/null | wc -w)
+if [ "$LAMBDA_COUNT" -gt 0 ]; then
+    echo -e "${YELLOW}⚠️  Found $LAMBDA_COUNT Lambda functions with 'dev-event' pattern${NC}"
+    POTENTIAL_ISSUES=$((POTENTIAL_ISSUES + 1))
+fi
+
+if [ "$POTENTIAL_ISSUES" -gt 0 ]; then
+    echo -e "\n${RED}⚠️  WARNING: Potential dependency issues detected!${NC}"
+    echo -e "${YELLOW}Terraform destroy may fail due to resource dependencies.${NC}"
+    echo -e "\n${CYAN}Recommended approach:${NC}"
+    echo -e "${BLUE}1. Cancel this script (Ctrl+C)${NC}"
+    echo -e "${BLUE}2. Run: ./step-998-pre-destroy-cleanup.sh${NC}"
+    echo -e "${BLUE}3. Then run: ./step-999-destroy-everything.sh${NC}"
+    
+    echo -e "\n${YELLOW}Continue anyway with Terraform destroy? (not recommended)${NC}"
+    read -p "Type 'FORCE' to continue or any other key to cancel: " force_continue
+    
+    if [ "$force_continue" != "FORCE" ]; then
+        echo -e "${GREEN}✅ Destruction cancelled. Run step-998-pre-destroy-cleanup.sh first.${NC}"
+        exit 0
+    fi
+    
+    echo -e "${RED}⚠️  Proceeding with potentially problematic destroy...${NC}"
+else
+    echo -e "${GREEN}✅ No obvious dependency issues detected${NC}"
 fi
 
 # 2. Destroy Terraform-managed resources

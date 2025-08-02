@@ -19,7 +19,8 @@ declare -A STEP_DESCRIPTIONS=(
     ["step-020-deploy-infrastructure.sh"]="🏗️  Deploy EventBridge infrastructure with Terraform"
     ["step-040-deploy-lambdas.sh"]="⚡ Deploy Lambda functions for event processing"
     ["step-050-test-events.sh"]="🧪 Test event processing and validate deployment"
-    ["step-999-destroy-everything.sh"]="💥 Destroy all resources and clean up"
+    ["step-998-pre-destroy-cleanup.sh"]="🧹 Remove EventBridge dependencies before Terraform destroy"
+    ["step-999-destroy-everything.sh"]="💥 Complete infrastructure teardown with Terraform destroy"
 )
 
 # Function to detect the next step based on current script
@@ -38,11 +39,27 @@ detect_next_step() {
     local next_step=""
     local next_num=""
     
-    # Look for the next sequential step
+    # Handle special case: after step 050, next is destroy workflow
+    if [ "$current_num" = "050" ]; then
+        if [ -f "$script_dir/step-998-pre-destroy-cleanup.sh" ]; then
+            echo "$script_dir/step-998-pre-destroy-cleanup.sh"
+            return 0
+        fi
+    fi
+    
+    # Handle destroy workflow: 998 → 999
+    if [ "$current_num" = "998" ]; then
+        if [ -f "$script_dir/step-999-destroy-everything.sh" ]; then
+            echo "$script_dir/step-999-destroy-everything.sh"
+            return 0
+        fi
+    fi
+    
+    # Look for the next sequential step (regular deployment flow)
     for step_file in $(ls "$script_dir"/step-*.sh 2>/dev/null | sort); do
         local step_num=$(echo "$step_file" | grep -oE 'step-[0-9]+' | grep -oE '[0-9]+')
         
-        if [ ! -z "$step_num" ] && [ "$step_num" -gt "$current_num" ] && [ "$step_num" != "999" ]; then
+        if [ ! -z "$step_num" ] && [ "$step_num" -gt "$current_num" ] && [ "$step_num" -lt "900" ]; then
             if [ -z "$next_num" ] || [ "$step_num" -lt "$next_num" ]; then
                 next_num="$step_num"
                 next_step="$step_file"
@@ -87,9 +104,19 @@ show_next_step() {
             echo -e ""
             echo -e "${CYAN}Available commands:${NC}"
             echo -e "   ${YELLOW}./step-050-test-events.sh${NC}  - Run additional tests"
-            echo -e "   ${YELLOW}./step-999-destroy-everything.sh${NC}  - Clean up all resources"
+            echo -e "   ${YELLOW}./step-998-pre-destroy-cleanup.sh${NC}  - Start destroy workflow"
             echo -e ""
             echo -e "${CYAN}📖 Check the README.md for usage examples and next steps${NC}"
+        elif [ "$current_num" = "999" ]; then
+            echo -e "${GREEN}🎉 Complete teardown finished!${NC}"
+            echo -e ""
+            echo -e "${BOLD}${CYAN}EventBridge Orchestrator has been completely removed!${NC}"
+            echo -e ""
+            echo -e "${CYAN}Next steps:${NC}"
+            echo -e "   ${YELLOW}./step-000-interactive-setup.sh${NC}  - Start fresh deployment"
+            echo -e "   ${YELLOW}git pull${NC}  - Update to latest version"
+            echo -e ""
+            echo -e "${CYAN}🧹 Environment is now clean and ready for redeployment${NC}"
         else
             echo -e "${YELLOW}⚠️  No next step detected${NC}"
             echo -e ""
@@ -108,7 +135,8 @@ show_all_steps() {
     
     echo -e "\n${BOLD}${CYAN}EventBridge Orchestrator - Available Steps:${NC}\n"
     
-    for step_file in $(ls "$script_dir"/step-*.sh 2>/dev/null | sort); do
+    echo -e "${BOLD}${GREEN}📚 DEPLOYMENT STEPS:${NC}"
+    for step_file in $(ls "$script_dir"/step-0*.sh 2>/dev/null | sort); do
         local step_name=$(basename "$step_file")
         local description="${STEP_DESCRIPTIONS[$step_name]:-📋 Script description not available}"
         
@@ -116,6 +144,20 @@ show_all_steps() {
         echo -e "   $description"
         echo ""
     done
+    
+    echo -e "${BOLD}${RED}🗑️  DESTROY STEPS:${NC}"
+    for step_file in $(ls "$script_dir"/step-9*.sh 2>/dev/null | sort); do
+        local step_name=$(basename "$step_file")
+        local description="${STEP_DESCRIPTIONS[$step_name]:-📋 Script description not available}"
+        
+        echo -e "${YELLOW}$step_name${NC}"
+        echo -e "   $description"
+        echo ""
+    done
+    
+    echo -e "${BOLD}${CYAN}💡 DESTROY WORKFLOW:${NC}"
+    echo -e "${BLUE}1. ./step-998-pre-destroy-cleanup.sh  (Remove dependencies)${NC}"
+    echo -e "${BLUE}2. ./step-999-destroy-everything.sh   (Complete teardown)${NC}"
 }
 
 # Function to validate step sequence
