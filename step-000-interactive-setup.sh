@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Source navigation functions
+source "$(dirname "$0")/step-navigation.sh" 2>/dev/null || {
+    echo "Warning: Navigation functions not found"
+}
+
 echo "🚀 EventBridge Orchestrator - Interactive Setup"
 echo "=============================================="
 
@@ -296,6 +301,13 @@ echo -e "${BLUE}• Your configuration is saved in .env${NC}"
 echo -e "${BLUE}• You can re-run this script to update settings${NC}"
 echo -e "${BLUE}• All subsequent scripts will use these settings${NC}"
 echo -e "${BLUE}• Check README-SETUP.md for detailed documentation${NC}"
+
+# Show next step
+if declare -f show_next_step > /dev/null; then
+    show_next_step "$(basename "$0")" "$(dirname "$0")"
+else
+    echo -e "\n${CYAN}Next: Run step-010-setup-iam-permissions.sh${NC}"
+fi
 
 # Offer to run next step
 echo -e "\n${CYAN}Would you like to run step 1 (IAM setup) now?${NC}"

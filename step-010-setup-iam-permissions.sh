@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Source navigation functions
+source "$(dirname "$0")/step-navigation.sh" 2>/dev/null || {
+    echo "Warning: Navigation functions not found"
+}
+
 echo "🔐 Step 1: Setting up IAM permissions for EventBridge testing"
 
 # Colors for output
@@ -9,6 +14,11 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+# Validate prerequisites
+if declare -f validate_prerequisites > /dev/null; then
+    validate_prerequisites "$(basename "$0")" "$(dirname "$0")" || exit 1
+fi
 
 # Load configuration
 if [ -f ".env" ]; then
@@ -102,4 +112,10 @@ fi
 rm eventbridge-full-policy.json
 
 echo -e "${GREEN}🎉 Step 1 completed successfully!${NC}"
-echo -e "${BLUE}Next: Run step-020-deploy-infrastructure.sh${NC}"
+
+# Show next step
+if declare -f show_next_step > /dev/null; then
+    show_next_step "$(basename "$0")" "$(dirname "$0")"
+else
+    echo -e "${BLUE}Next: Run step-015-add-sqs-permissions.sh${NC}"
+fi
