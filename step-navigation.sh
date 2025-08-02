@@ -59,10 +59,13 @@ detect_next_step() {
     for step_file in $(ls "$script_dir"/step-*.sh 2>/dev/null | sort); do
         local step_num=$(echo "$step_file" | grep -oE 'step-[0-9]+' | grep -oE '[0-9]+')
         
-        if [ ! -z "$step_num" ] && [ "$step_num" -gt "$current_num" ] && [ "$step_num" -lt "900" ]; then
-            if [ -z "$next_num" ] || [ "$step_num" -lt "$next_num" ]; then
-                next_num="$step_num"
-                next_step="$step_file"
+        # Only process if we found a valid step number
+        if [ -n "$step_num" ] && [ "$step_num" -gt 0 ] 2>/dev/null; then
+            if [ "$step_num" -gt "$current_num" ] 2>/dev/null && [ "$step_num" -lt 900 ] 2>/dev/null; then
+                if [ -z "$next_num" ] || [ "$step_num" -lt "$next_num" ] 2>/dev/null; then
+                    next_num="$step_num"
+                    next_step="$step_file"
+                fi
             fi
         fi
     done

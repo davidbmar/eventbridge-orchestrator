@@ -307,7 +307,8 @@ cleanup_on_exit() {
     local exit_code=$?
     local script_name="$1"
     
-    if [ $exit_code -ne 0 ]; then
+    # Only log error if it's actually an error (non-zero exit and not from normal completion)
+    if [ $exit_code -ne 0 ] && [ "${BASH_COMMAND}" != "exit 0" ]; then
         log_error "Script exited with code $exit_code" "$script_name"
         show_deployment_summary "$script_name"
     fi
@@ -321,8 +322,17 @@ setup_error_handling() {
     set -eE
     set -o pipefail
     
-    # Set up exit trap
-    trap "cleanup_on_exit '$script_name'" EXIT ERR
+    # Set up error trap only (not exit trap to avoid false positives)
+    trap "cleanup_on_error '$script_name'" ERR
     
     log_info "Error handling initialized for $script_name" "$script_name"
+}
+
+# Separate function for actual errors
+cleanup_on_error() {
+    local exit_code=$?
+    local script_name="$1"
+    
+    log_error "Script failed with code $exit_code" "$script_name"
+    show_deployment_summary "$script_name"
 }
