@@ -137,7 +137,6 @@ for bus_name in "${POTENTIAL_BUS_NAMES[@]}"; do
             echo -e "${GREEN}✅ Event bus exists: $bus_name${NC}"
             
             # Get all rules on this bus
-            local rules
             rules=$(aws events list-rules \
                 --event-bus-name "$bus_name" \
                 --region "$AWS_REGION" \
@@ -193,7 +192,6 @@ for bus_name in "${POTENTIAL_BUS_NAMES[@]}"; do
         
         if aws events describe-event-bus --name "$bus_name" --region "$AWS_REGION" >/dev/null 2>&1; then
             # Get all rules again
-            local rules
             rules=$(aws events list-rules \
                 --event-bus-name "$bus_name" \
                 --region "$AWS_REGION" \
@@ -225,7 +223,6 @@ DLQ_NAMES=(
 for queue_name in "${DLQ_NAMES[@]}"; do
     if [ ! -z "$queue_name" ]; then
         # Get queue URL
-        local queue_url
         queue_url=$(aws sqs get-queue-url --queue-name "$queue_name" --region "$AWS_REGION" --query 'QueueUrl' --output text 2>/dev/null || echo "")
         
         if [ ! -z "$queue_url" ] && [ "$queue_url" != "None" ]; then
