@@ -17,7 +17,7 @@ ERROR_COUNT=0
 WARNING_COUNT=0
 DEPLOYMENT_STATE_DIR=".deployment-state"
 
-# Ensure deployment state directory exists immediately
+# Ensure deployment state directory and log files exist immediately
 if [ ! -d "$DEPLOYMENT_STATE_DIR" ]; then
     mkdir -p "$DEPLOYMENT_STATE_DIR" 2>/dev/null || {
         echo "Warning: Could not create deployment state directory"
@@ -25,6 +25,12 @@ if [ ! -d "$DEPLOYMENT_STATE_DIR" ]; then
         DEPLOYMENT_STATE_DIR="."
     }
 fi
+
+# Initialize log files if they don't exist
+touch "${DEPLOYMENT_STATE_DIR}/deployment.log" 2>/dev/null || true
+touch "${DEPLOYMENT_STATE_DIR}/errors.log" 2>/dev/null || true
+touch "${DEPLOYMENT_STATE_DIR}/warnings.log" 2>/dev/null || true
+touch "${DEPLOYMENT_STATE_DIR}/checkpoints.log" 2>/dev/null || true
 
 # Function to log errors with timestamp
 log_error() {
@@ -318,21 +324,24 @@ cleanup_on_exit() {
 setup_error_handling() {
     local script_name="$1"
     
-    # Enable strict error handling
-    set -eE
+    # Enable basic error handling without problematic traps
+    set -e
     set -o pipefail
     
-    # Set up error trap only (not exit trap to avoid false positives)
-    trap "cleanup_on_error '$script_name'" ERR
+    # Don't set error traps - they cause false positives
+    # Scripts should handle their own error checking
     
     log_info "Error handling initialized for $script_name" "$script_name"
 }
 
 # Separate function for actual errors
 cleanup_on_error() {
-    local exit_code=$?
     local script_name="$1"
+    local exit_code="$2"
     
-    log_error "Script failed with code $exit_code" "$script_name"
-    show_deployment_summary "$script_name"
+    # Only log if it's a real error (not success)
+    if [ "$exit_code" -ne 0 ]; then
+        log_error "Script failed with code $exit_code" "$script_name"
+        show_deployment_summary "$script_name"
+    fi
 }
