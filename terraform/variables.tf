@@ -18,6 +18,12 @@ variable "aws_region" {
   default     = "us-east-2"
 }
 
+variable "event_bus_name" {
+  description = "Name of the EventBridge custom bus"
+  type        = string
+  default     = "dev-application-events"
+}
+
 # S3 Bucket Variables
 variable "audio_bucket" {
   description = "S3 bucket for audio uploads"

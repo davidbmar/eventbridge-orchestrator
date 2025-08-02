@@ -57,6 +57,7 @@ if [ ! -f "terraform/terraform.tfvars" ]; then
 environment = "${ENVIRONMENT}"
 project_name = "${PROJECT_NAME}"
 aws_region = "${AWS_REGION}"
+event_bus_name = "${EVENT_BUS_NAME:-${ENVIRONMENT}-application-events}"
 
 # S3 Buckets  
 audio_bucket = "${AUDIO_BUCKET:-audio-uploads-${ENVIRONMENT}-${AWS_REGION}}"

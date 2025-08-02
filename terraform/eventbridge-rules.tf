@@ -3,7 +3,7 @@
 
 # Create custom event bus (optional - can use default)
 resource "aws_cloudwatch_event_bus" "main" {
-  name = "${var.environment}-application-events"
+  name = var.event_bus_name
   
   tags = {
     Environment = var.environment

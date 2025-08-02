@@ -1,0 +1,7 @@
+[
+  {
+    "Source": "custom.upload-service",
+    "DetailType": "Document Uploaded",
+    "Detail": "{\"userId\":\"test-user-789\",\"fileId\":\"7ba8c920-8dae-22d2-91b5-11c15fd541c9\",\"s3Location\":{\"bucket\":\"test-document-bucket\",\"key\":\"test-user-789/report.pdf\"},\"metadata\":{\"format\":\"pdf\",\"size\":2048000,\"contentType\":\"application/pdf\"}}"
+  }
+]
