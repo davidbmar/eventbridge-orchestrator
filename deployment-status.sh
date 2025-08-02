@@ -115,18 +115,20 @@ if [ "$infrastructure_status" = "completed" ]; then
             echo -e "${RED}❌ EventBridge Bus: Not found${NC}"
         fi
         
-        # Check Lambda functions
+        # Check Lambda functions - extract function name from ARN
         if [ -n "${EVENT_LOGGER_ARN}" ]; then
-            if aws lambda get-function --function-name "${EVENT_LOGGER_ARN}" --region "${AWS_REGION}" &>/dev/null; then
-                echo -e "${GREEN}✅ Event Logger Lambda: Active${NC}"
+            FUNCTION_NAME=$(echo "${EVENT_LOGGER_ARN}" | awk -F: '{print $NF}')
+            if aws lambda get-function --function-name "${FUNCTION_NAME}" --region "${AWS_REGION}" &>/dev/null; then
+                echo -e "${GREEN}✅ Event Logger Lambda: ${FUNCTION_NAME}${NC}"
             else
                 echo -e "${RED}❌ Event Logger Lambda: Not found${NC}"
             fi
         fi
         
         if [ -n "${DLQ_PROCESSOR_ARN}" ]; then
-            if aws lambda get-function --function-name "${DLQ_PROCESSOR_ARN}" --region "${AWS_REGION}" &>/dev/null; then
-                echo -e "${GREEN}✅ DLQ Processor Lambda: Active${NC}"
+            FUNCTION_NAME=$(echo "${DLQ_PROCESSOR_ARN}" | awk -F: '{print $NF}')
+            if aws lambda get-function --function-name "${FUNCTION_NAME}" --region "${AWS_REGION}" &>/dev/null; then
+                echo -e "${GREEN}✅ DLQ Processor Lambda: ${FUNCTION_NAME}${NC}"
             else
                 echo -e "${RED}❌ DLQ Processor Lambda: Not found${NC}"
             fi
