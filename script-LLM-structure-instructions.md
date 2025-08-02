@@ -751,6 +751,145 @@ validate_post_step() {
 
 ---
 
+## 🐛 Critical Lessons Learned
+
+### **Directory Management and Path Handling**
+
+**⚠️ CRITICAL ISSUE:** Scripts that change directories break relative path logging
+
+**Problem discovered:** When deployment scripts execute `cd terraform` or change to other directories, relative paths like `.deployment-state/deployment.log` no longer resolve correctly, causing:
+- "No such file or directory" errors in log output
+- Failed logging operations that break error handling
+- False positive error reports
+
+**✅ Solution implemented:**
+```bash
+# ❌ WRONG - Relative path breaks when directory changes
+DEPLOYMENT_STATE_DIR=".deployment-state"
+
+# ✅ CORRECT - Absolute path works from any directory
+DEPLOYMENT_STATE_DIR="$(pwd)/.deployment-state"
+```
+
+**📋 Implementation pattern for error-handling.sh:**
+```bash
+# Global variables for error tracking
+ERROR_COUNT=0
+WARNING_COUNT=0
+# Use absolute path to handle directory changes (like cd terraform)
+DEPLOYMENT_STATE_DIR="$(pwd)/.deployment-state"
+
+# Ensure deployment state directory and log files exist immediately
+if [ ! -d "$DEPLOYMENT_STATE_DIR" ]; then
+    mkdir -p "$DEPLOYMENT_STATE_DIR" 2>/dev/null || {
+        echo "Warning: Could not create deployment state directory"
+        # Fallback to current directory for logs
+        DEPLOYMENT_STATE_DIR="."
+    }
+fi
+
+# Initialize log files if they don't exist
+touch "${DEPLOYMENT_STATE_DIR}/deployment.log" 2>/dev/null || true
+touch "${DEPLOYMENT_STATE_DIR}/errors.log" 2>/dev/null || true
+touch "${DEPLOYMENT_STATE_DIR}/warnings.log" 2>/dev/null || true
+touch "${DEPLOYMENT_STATE_DIR}/checkpoints.log" 2>/dev/null || true
+```
+
+### **Error Trap Management**
+
+**⚠️ CRITICAL ISSUE:** ERR traps fire on successful script completion
+
+**Problem discovered:** Bash ERR traps trigger even when scripts complete successfully, causing false positive error reports
+
+**✅ Solution implemented:**
+```bash
+# ❌ WRONG - ERR trap causes false positives
+setup_error_handling() {
+    set -eE
+    set -o pipefail
+    trap "cleanup_on_error '$script_name'" ERR  # Fires even on success
+}
+
+# ✅ CORRECT - Minimal error handling without problematic traps
+setup_error_handling() {
+    local script_name="$1"
+    
+    # Enable basic error handling without problematic traps
+    set -e
+    set -o pipefail
+    
+    # Don't set error traps - they cause false positives
+    # Scripts should handle their own error checking
+    
+    log_info "Error handling initialized for $script_name" "$script_name"
+}
+```
+
+### **Robust Logging Patterns**
+
+**✅ Key patterns for bulletproof logging:**
+
+```bash
+# Always use 2>/dev/null || true for non-critical log operations
+echo "${timestamp} INFO [${script_name}]: ${message}" >> "${DEPLOYMENT_STATE_DIR}/deployment.log" 2>/dev/null || true
+
+# Initialize all log files immediately when sourced
+touch "${DEPLOYMENT_STATE_DIR}/deployment.log" 2>/dev/null || true
+touch "${DEPLOYMENT_STATE_DIR}/errors.log" 2>/dev/null || true
+
+# Check for log file existence before writing (alternative approach)
+if [ -w "${DEPLOYMENT_STATE_DIR}/deployment.log" ]; then
+    echo "${timestamp} INFO: ${message}" >> "${DEPLOYMENT_STATE_DIR}/deployment.log"
+fi
+```
+
+### **Directory Change Safety**
+
+**📋 Safe patterns for scripts that change directories:**
+
+```bash
+# Method 1: Store original directory and return
+ORIGINAL_DIR="$(pwd)"
+cd terraform
+# Do terraform operations
+cd "$ORIGINAL_DIR"
+
+# Method 2: Use absolute paths for all log operations
+DEPLOYMENT_STATE_DIR="$(pwd)/.deployment-state"  # Set before any cd commands
+
+# Method 3: Use subshells to contain directory changes
+(
+    cd terraform
+    terraform apply
+)
+# Still in original directory
+```
+
+### **State Management Robustness**
+
+**✅ Enhanced state tracking patterns:**
+
+```bash
+# Robust checkpoint creation
+create_checkpoint() {
+    local step_name="$1"
+    local status="$2"
+    local script_name="$3"
+    local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    
+    # Use absolute path and handle failures gracefully
+    local state_dir="$(pwd)/.deployment-state"
+    mkdir -p "$state_dir" 2>/dev/null || return 0
+    
+    echo "${timestamp} ${step_name} ${status}" >> "${state_dir}/checkpoints.log" 2>/dev/null || true
+    echo "${status}" > "${state_dir}/${step_name}.status" 2>/dev/null || true
+    
+    log_info "Checkpoint: ${step_name} -> ${status}" "$script_name"
+}
+```
+
+---
+
 ## 🚀 Implementation Checklist
 
 When building a new sequential deployment system, ensure you implement:
@@ -782,6 +921,9 @@ When building a new sequential deployment system, ensure you implement:
 - [ ] Prerequisites validation
 - [ ] Graceful error degradation
 - [ ] Comprehensive logging
+- [ ] **CRITICAL**: Absolute paths for state directories (not relative paths)
+- [ ] **CRITICAL**: Error trap management (avoid false positives)
+- [ ] **CRITICAL**: Directory change safety patterns
 
 ### Production Features
 - [ ] Non-interactive automation support
