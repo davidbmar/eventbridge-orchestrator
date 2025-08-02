@@ -1,23 +1,27 @@
 #!/bin/bash
-set -e
 
-# Source navigation functions
+# Source navigation and error handling functions
 source "$(dirname "$0")/step-navigation.sh" 2>/dev/null || {
     echo "Warning: Navigation functions not found"
 }
 
+source "$(dirname "$0")/error-handling.sh" 2>/dev/null || {
+    echo "Warning: Error handling functions not found"
+}
+
+# Initialize error handling
+SCRIPT_NAME="step-010-setup-iam-permissions"
+setup_error_handling "$SCRIPT_NAME" 2>/dev/null || set -e
+
 echo "🔐 Step 1: Setting up IAM permissions for EventBridge testing"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Create checkpoint
+create_checkpoint "$SCRIPT_NAME" "in_progress" "$SCRIPT_NAME" 2>/dev/null || true
 
-# Validate prerequisites
-if declare -f validate_prerequisites > /dev/null; then
-    validate_prerequisites "$(basename "$0")" "$(dirname "$0")" || exit 1
+# Check prerequisites
+if ! check_deployment_prerequisites "$SCRIPT_NAME"; then
+    log_error "Prerequisites not met" "$SCRIPT_NAME"
+    exit 1
 fi
 
 # Load configuration
@@ -98,20 +102,21 @@ echo -e "${GREEN}✅ IAM permissions configured successfully!${NC}"
 echo -e "${YELLOW}Waiting 10 seconds for IAM changes to propagate...${NC}"
 sleep 10
 
-# Test permissions
-echo -e "${BLUE}Testing EventBridge permissions...${NC}"
-aws events describe-event-bus --name default --region us-east-2 > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ EventBridge permissions working!${NC}"
+# Test permissions with retry
+log_info "Testing EventBridge permissions..." "$SCRIPT_NAME"
+if retry_command 3 5 "$SCRIPT_NAME" aws events describe-event-bus --name default --region us-east-2; then
+    log_info "EventBridge permissions verified successfully" "$SCRIPT_NAME"
 else
-    echo -e "${RED}❌ EventBridge permissions test failed${NC}"
+    log_error "EventBridge permissions test failed after retries" "$SCRIPT_NAME"
     exit 1
 fi
 
 # Clean up temp file
 rm eventbridge-full-policy.json
 
-echo -e "${GREEN}🎉 Step 1 completed successfully!${NC}"
+# Mark step as completed
+create_checkpoint "$SCRIPT_NAME" "completed" "$SCRIPT_NAME"
+log_info "Step 1 completed successfully!" "$SCRIPT_NAME"
 
 # Show next step
 if declare -f show_next_step > /dev/null; then

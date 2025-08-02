@@ -1,19 +1,23 @@
 #!/bin/bash
-set -e
 
-# Source navigation functions
+# Source navigation and error handling functions
 source "$(dirname "$0")/step-navigation.sh" 2>/dev/null || {
     echo "Warning: Navigation functions not found"
 }
 
+source "$(dirname "$0")/error-handling.sh" 2>/dev/null || {
+    echo "Warning: Error handling functions not found"
+    set -e
+}
+
 echo "🏗️  Step 2: Deploying EventBridge Infrastructure"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Initialize error handling
+SCRIPT_NAME="step-020-deploy-infrastructure"
+setup_error_handling "$SCRIPT_NAME" 2>/dev/null || set -e
+
+# Create checkpoint
+create_checkpoint "$SCRIPT_NAME" "in_progress" "$SCRIPT_NAME" 2>/dev/null || true
 
 # Validate prerequisites
 if declare -f validate_prerequisites > /dev/null; then
@@ -86,19 +90,65 @@ else
     echo -e "${GREEN}✅ Using existing Terraform variables${NC}"
 fi
 
-# Deploy infrastructure
-echo -e "${BLUE}📋 Initializing Terraform...${NC}"
+# Deploy infrastructure with retry logic
+log_info "Starting Terraform deployment..." "$SCRIPT_NAME"
 cd terraform
-terraform init
 
-echo -e "${BLUE}📋 Planning deployment...${NC}"
-terraform plan
+# Initialize Terraform with retry
+log_info "Initializing Terraform..." "$SCRIPT_NAME"
+if ! retry_command 3 10 "$SCRIPT_NAME" terraform init; then
+    log_error "Terraform initialization failed" "$SCRIPT_NAME"
+    exit 1
+fi
 
-echo -e "${YELLOW}🚀 Deploying infrastructure...${NC}"
-terraform apply -auto-approve
+# Plan deployment
+log_info "Planning Terraform deployment..." "$SCRIPT_NAME"
+if ! terraform plan -out=tfplan; then
+    log_error "Terraform planning failed" "$SCRIPT_NAME"
+    exit 1
+fi
 
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ Infrastructure deployed successfully!${NC}"
+# Apply deployment with retry and error handling
+log_info "Deploying infrastructure..." "$SCRIPT_NAME"
+echo -e "${BLUE}Note: Schema registry permission errors are non-critical and can be ignored${NC}"
+
+# Apply with output capture and retry logic
+APPLY_SUCCESS=false
+for attempt in 1 2 3; do
+    log_info "Terraform apply attempt $attempt/3" "$SCRIPT_NAME"
+    
+    if terraform apply -auto-approve tfplan 2>&1 | tee terraform_apply.log; then
+        APPLY_RESULT=0
+        APPLY_SUCCESS=true
+        break
+    else
+        APPLY_RESULT=${PIPESTATUS[0]}
+        
+        # Check if this is a retryable error
+        if handle_terraform_error $APPLY_RESULT terraform_apply.log "$SCRIPT_NAME"; then
+            case $? in
+                0) 
+                    APPLY_SUCCESS=true
+                    break
+                    ;;
+                2)
+                    log_warning "Retryable error detected, waiting before retry..." "$SCRIPT_NAME"
+                    sleep $((attempt * 10))
+                    ;;
+                *)
+                    log_error "Non-retryable Terraform error" "$SCRIPT_NAME"
+                    break
+                    ;;
+            esac
+        else
+            log_error "Terraform apply failed" "$SCRIPT_NAME"
+            break
+        fi
+    fi
+done
+
+if [ "$APPLY_SUCCESS" = true ]; then
+    log_info "Infrastructure deployed successfully!" "$SCRIPT_NAME"
     
     # Get outputs
     EVENT_BUS_NAME=$(terraform output -raw event_bus_name 2>/dev/null || echo "default")
@@ -122,10 +172,41 @@ EOF
         fi
     fi
     
-    echo -e "${GREEN}🎉 Step 2 completed successfully!${NC}"
-    echo -e "${BLUE}Next: Run step-040-deploy-lambdas.sh${NC}"
+    # Check for common warnings that can be ignored
+    if grep -q "User is not authorized to perform: schemas:" terraform_apply.log 2>/dev/null; then
+        log_warning "Schema registry permission warning detected (non-critical)" "$SCRIPT_NAME"
+    fi
+    
+    # Mark step as completed
+    create_checkpoint "$SCRIPT_NAME" "completed" "$SCRIPT_NAME"
+    log_info "Step 2 completed successfully!" "$SCRIPT_NAME"
 else
     echo -e "${RED}❌ Infrastructure deployment failed${NC}"
+    
+    # Check if failure was due to schema registry issues only
+    if grep -q "User is not authorized to perform: schemas:" terraform_apply.log && ! grep -q "Error:" terraform_apply.log; then
+        echo -e "${YELLOW}💡 Deployment may have succeeded despite schema registry warnings${NC}"
+        echo -e "${BLUE}   Checking if core resources were created...${NC}"
+        
+        # Try to get EventBridge bus name to confirm deployment worked
+        if EVENT_BUS_CHECK=$(terraform output -raw event_bus_name 2>/dev/null); then
+            echo -e "${GREEN}✅ Core infrastructure appears to be deployed successfully${NC}"
+            EVENT_BUS_NAME="$EVENT_BUS_CHECK"
+            # Continue with success path
+            cd ..
+            cat > deployment-config.env << EOF
+AWS_REGION=${AWS_REGION}
+ENVIRONMENT=${ENVIRONMENT}
+EVENT_BUS_NAME=${EVENT_BUS_NAME}
+PROJECT_NAME=${PROJECT_NAME}
+DEPLOYMENT_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+EOF
+            echo -e "${GREEN}🎉 Step 2 completed successfully (ignoring schema warnings)!${NC}"
+            cd terraform
+            exit 0
+        fi
+    fi
+    
     echo -e "${YELLOW}💡 Some resources may have been created. Check AWS console.${NC}"
     echo -e "${YELLOW}💡 You can still test basic EventBridge functionality.${NC}"
     

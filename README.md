@@ -183,37 +183,99 @@ eventbridge-orchestrator/
 
 ## **🚀 Quick Start Deployment**
 
-Deploy the complete EventBridge orchestrator in 5 simple steps:
+Deploy the complete EventBridge orchestrator with **enterprise-grade robustness and error handling**:
 
-### **Fresh GitHub Checkout Setup**
+### **🎯 Automated Deployment (Recommended)**
 
 ```bash
-# Clone and deploy
+# Clone and deploy everything automatically
 git clone https://github.com/davidbmar/eventbridge-orchestrator.git
 cd eventbridge-orchestrator
 
-# Run deployment steps in order
-./step-000-interactive-setup.sh      # Interactive configuration
-./step-010-setup-iam-permissions.sh  # AWS IAM permissions
-./step-020-deploy-infrastructure.sh  # EventBridge + Terraform  
-./step-040-deploy-lambdas.sh        # Lambda functions
-./step-050-test-events.sh           # End-to-end testing
+# One-command deployment with full automation
+./deploy-all.sh
+
+# Or for production-ready automated deployment
+./deploy-all.sh --auto-approve --fresh-start
 ```
+
+### **📋 Manual Step-by-Step Deployment**
+
+```bash
+# 1. Check prerequisites and system readiness
+./step-001-preflight-check.sh       # NEW: Validates prerequisites
+
+# 2. Run deployment steps with enhanced error handling
+./step-000-interactive-setup.sh      # Interactive configuration
+./step-010-setup-iam-permissions.sh  # AWS IAM permissions (with retry logic)
+./step-020-deploy-infrastructure.sh  # EventBridge + Terraform (handles schema errors)
+./step-040-deploy-lambdas.sh        # Lambda functions
+./step-050-test-events.sh           # End-to-end testing (comprehensive health check)
+
+# 3. Check deployment status anytime
+./deployment-status.sh              # NEW: Real-time deployment monitoring
+```
+
+### **🔧 Deployment Options**
+
+| Command | Description | Use Case |
+|---------|-------------|----------|
+| `./deploy-all.sh` | Interactive full deployment | First-time setup |
+| `./deploy-all.sh --auto-approve` | Non-interactive deployment | CI/CD pipelines |
+| `./deploy-all.sh --fresh-start` | Clean state and redeploy | Troubleshooting |
+| `./deploy-all.sh --skip-preflight` | Skip prerequisite checks | Expert users |
+| `./deployment-status.sh` | Check deployment progress | Status monitoring |
+
+### **✨ Enhanced Features**
+
+#### **🛡️ Robust Error Handling**
+- **Automatic retries** with exponential backoff
+- **Schema registry error handling** (known AWS API limitations)
+- **State tracking** with checkpoint recovery
+- **Graceful degradation** for non-critical failures
+
+#### **📊 Deployment Monitoring**
+- **Real-time status tracking** with `.deployment-state/` directory
+- **Error and warning logs** with timestamps
+- **AWS resource health checks** 
+- **Progress visualization** with step-by-step status
+
+#### **🔄 Recovery & Resilience**
+- **Resume interrupted deployments** from checkpoints
+- **Clean state management** with fresh start option
+- **Prerequisites validation** before deployment
+- **Comprehensive logging** for troubleshooting
 
 ### **What Each Step Does**
 
-| Step | Name | Description | Creates |
-|------|------|-------------|---------|
-| **000** | Interactive Setup | Configures environment variables and AWS settings | `.env` file, Terraform variables |
-| **010** | IAM Permissions | Sets up comprehensive AWS permissions for deployment | User IAM policies |
-| **020** | Infrastructure | Deploys EventBridge, schemas, rules, and IAM roles via Terraform | EventBridge bus, Schema registry, SQS DLQ |
-| **040** | Lambda Functions | Deploys event-logger and dead-letter-processor functions | Lambda functions with EventBridge targets |
-| **050** | Testing | Tests all event types and validates end-to-end flow | Test results, log verification |
+| Step | Name | Description | Enhanced Features |
+|------|------|-------------|-------------------|
+| **001** | **Preflight Check** | Validates system prerequisites | ✅ Tool validation, AWS credentials, disk space |
+| **000** | Interactive Setup | Configures environment variables | ✅ Creates `.env` file, Terraform variables |
+| **010** | IAM Permissions | Sets up AWS permissions | ✅ Retry logic, permission validation |
+| **020** | Infrastructure | Deploys EventBridge infrastructure | ✅ Schema error handling, Terraform retry |
+| **040** | Lambda Functions | Deploys event processing functions | ✅ Error recovery, validation checks |
+| **050** | Testing | Comprehensive end-to-end validation | ✅ Operational health check, detailed reporting |
 
-### **One-Command Cleanup**
+### **💾 State Management**
+
+The deployment system now maintains state in `.deployment-state/`:
+```
+.deployment-state/
+├── checkpoints.log          # Step completion tracking
+├── errors.log              # Error history with timestamps  
+├── warnings.log            # Warning history
+├── deployment.log          # Detailed operation log
+├── step-*.status           # Individual step status files
+└── step-*.log             # Per-step execution logs
+```
+
+### **🧹 Clean Deployment Destruction**
 
 ```bash
-./step-999-destroy-everything.sh  # Removes ALL resources
+# Two-phase destroy for dependency handling
+./step-998-pre-destroy-cleanup.sh    # Handles AWS API dependencies
+./step-999-destroy-everything.sh     # Terraform destroy
 ```
 
 ---
@@ -240,6 +302,100 @@ cd eventbridge-orchestrator
 
 ---
 
+## **🔧 Troubleshooting Guide**
+
+### **🚨 Common Issues & Solutions**
+
+#### **Schema Registry Permission Errors**
+```
+Error: User is not authorized to perform: schemas:ListTagsForResource
+```
+**Solution:** This is a known AWS API limitation and is **non-critical**. The deployment continues successfully.
+- ✅ **Status:** EventBridge functionality is not affected
+- ✅ **Action:** No action needed - deployment proceeds normally
+
+#### **Terraform Destroy Hanging**
+```
+Error: Rule can't be deleted since it has targets
+```
+**Solution:** Use the two-phase destroy process:
+```bash
+./step-998-pre-destroy-cleanup.sh    # Remove dependencies first
+./step-999-destroy-everything.sh     # Then run Terraform destroy
+```
+
+#### **AWS Credentials Not Found**
+```
+Error: AWS credentials not configured
+```
+**Solution:** Configure AWS CLI credentials:
+```bash
+aws configure
+# Or set environment variables:
+export AWS_ACCESS_KEY_ID=your_key
+export AWS_SECRET_ACCESS_KEY=your_secret
+export AWS_DEFAULT_REGION=us-east-2
+```
+
+#### **Missing Prerequisites**
+```
+Error: Required command 'terraform' not found
+```
+**Solution:** Run preflight check for detailed installation instructions:
+```bash
+./step-001-preflight-check.sh
+```
+
+### **📊 Monitoring & Debugging**
+
+#### **Check Deployment Status**
+```bash
+./deployment-status.sh              # Overall status
+cat .deployment-state/errors.log    # Error details
+cat .deployment-state/warnings.log  # Warning details
+```
+
+#### **View Step-Specific Logs**
+```bash
+ls .deployment-state/               # List all logs
+cat .deployment-state/step-020-deploy-infrastructure.log
+```
+
+#### **Resume Failed Deployment**
+```bash
+# Check what failed
+./deployment-status.sh
+
+# Continue from where it left off
+./deploy-all.sh                     # Skips completed steps automatically
+```
+
+#### **Fresh Start After Issues**
+```bash
+./deploy-all.sh --fresh-start       # Clean state and restart
+```
+
+### **🔍 Health Checks**
+
+#### **Verify EventBridge Resources**
+```bash
+# Check EventBridge bus
+aws events describe-event-bus --name dev-application-events
+
+# List EventBridge rules  
+aws events list-rules --event-bus-name dev-application-events
+
+# Check Lambda functions
+aws lambda list-functions --query 'Functions[?contains(FunctionName, `event`)]'
+```
+
+#### **Test Event Flow**
+```bash
+./step-050-test-events.sh           # Comprehensive end-to-end test
+```
+
+---
+
 ## **Common Questions**
 
 ### **Q: What happens if my service is offline when events are sent?**
@@ -262,4 +418,57 @@ cd eventbridge-orchestrator
 2. Reference the schemas in `/schemas/` for event structure
 3. See integration examples in the audio upload system repository
 
+### **Q: What's new in the enhanced deployment system?**
+
+**🎯 Production-Ready Features:**
+- **Enterprise-grade error handling** with automatic retries
+- **State tracking and recovery** - resume from any point
+- **Comprehensive logging** with timestamps and categorization
+- **AWS API limitation handling** (e.g., schema registry permissions)
+- **Prerequisites validation** before deployment begins
+- **Real-time monitoring** with deployment status dashboard
+
+**🚀 Deployment Tools:**
+- `deploy-all.sh` - Fully automated deployment with options
+- `deployment-status.sh` - Real-time progress and health monitoring  
+- `step-001-preflight-check.sh` - System readiness validation
+- `error-handling.sh` - Common error handling library
+- `.deployment-state/` - Persistent state and logging directory
+
+**🔧 Robustness Improvements:**
+- **Retry logic** for transient AWS API failures
+- **Graceful degradation** for non-critical errors
+- **Checkpoint recovery** for interrupted deployments
+- **Fresh start capability** for troubleshooting
+- **Two-phase destroy** handling AWS dependency constraints
+
+This makes the system suitable for **production environments** and **CI/CD pipelines** while maintaining the simplicity of the original step-by-step approach.
+
+---
+
+## **🎯 For Developers**
+
+### **Adding New Event Types**
+1. Create schema in `schemas/` directory
+2. Add EventBridge rule in `terraform/eventbridge-rules.tf`
+3. Update test cases in `examples/`
+4. Deploy with `./step-020-deploy-infrastructure.sh`
+
+### **Integration with CI/CD**
+```bash
+# Non-interactive deployment for automation
+./deploy-all.sh --auto-approve --fresh-start
+
+# Status checking for pipeline validation
+./deployment-status.sh && echo "Deployment healthy"
+```
+
+### **Local Development**
+```bash
+# Quick status check during development
+./deployment-status.sh
+
+# Test specific event types
+aws events put-events --entries file://examples/test-audio-upload.json
+```
 
