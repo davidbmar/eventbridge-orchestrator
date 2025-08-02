@@ -17,8 +17,14 @@ ERROR_COUNT=0
 WARNING_COUNT=0
 DEPLOYMENT_STATE_DIR=".deployment-state"
 
-# Ensure deployment state directory exists
-mkdir -p "$DEPLOYMENT_STATE_DIR"
+# Ensure deployment state directory exists immediately
+if [ ! -d "$DEPLOYMENT_STATE_DIR" ]; then
+    mkdir -p "$DEPLOYMENT_STATE_DIR" 2>/dev/null || {
+        echo "Warning: Could not create deployment state directory"
+        # Fallback to current directory for logs
+        DEPLOYMENT_STATE_DIR="."
+    }
+fi
 
 # Function to log errors with timestamp
 log_error() {
@@ -27,7 +33,7 @@ log_error() {
     local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     
     echo -e "${RED}❌ ERROR: ${message}${NC}" >&2
-    echo "${timestamp} ERROR [${script_name:-unknown}]: ${message}" >> "${DEPLOYMENT_STATE_DIR}/errors.log"
+    echo "${timestamp} ERROR [${script_name:-unknown}]: ${message}" >> "${DEPLOYMENT_STATE_DIR}/errors.log" 2>/dev/null || true
     ((ERROR_COUNT++))
 }
 
@@ -38,7 +44,7 @@ log_warning() {
     local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     
     echo -e "${YELLOW}⚠️  WARNING: ${message}${NC}"
-    echo "${timestamp} WARNING [${script_name:-unknown}]: ${message}" >> "${DEPLOYMENT_STATE_DIR}/warnings.log"
+    echo "${timestamp} WARNING [${script_name:-unknown}]: ${message}" >> "${DEPLOYMENT_STATE_DIR}/warnings.log" 2>/dev/null || true
     ((WARNING_COUNT++))
 }
 
@@ -49,7 +55,7 @@ log_info() {
     local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     
     echo -e "${BLUE}ℹ️  ${message}${NC}"
-    echo "${timestamp} INFO [${script_name:-unknown}]: ${message}" >> "${DEPLOYMENT_STATE_DIR}/deployment.log"
+    echo "${timestamp} INFO [${script_name:-unknown}]: ${message}" >> "${DEPLOYMENT_STATE_DIR}/deployment.log" 2>/dev/null || true
 }
 
 # Function to check if a command exists
@@ -245,8 +251,8 @@ create_checkpoint() {
     local script_name="$3"
     local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     
-    echo "${timestamp} ${step_name} ${status}" >> "${DEPLOYMENT_STATE_DIR}/checkpoints.log"
-    echo "${status}" > "${DEPLOYMENT_STATE_DIR}/${step_name}.status"
+    echo "${timestamp} ${step_name} ${status}" >> "${DEPLOYMENT_STATE_DIR}/checkpoints.log" 2>/dev/null || true
+    echo "${status}" > "${DEPLOYMENT_STATE_DIR}/${step_name}.status" 2>/dev/null || true
     
     log_info "Checkpoint: ${step_name} -> ${status}" "$script_name"
 }
