@@ -15,7 +15,8 @@ NC='\033[0m' # No Color
 # Global variables for error tracking
 ERROR_COUNT=0
 WARNING_COUNT=0
-DEPLOYMENT_STATE_DIR=".deployment-state"
+# Use absolute path to handle directory changes (like cd terraform)
+DEPLOYMENT_STATE_DIR="$(pwd)/.deployment-state"
 
 # Ensure deployment state directory and log files exist immediately
 if [ ! -d "$DEPLOYMENT_STATE_DIR" ]; then
